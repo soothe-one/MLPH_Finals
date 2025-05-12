@@ -1,0 +1,1426 @@
+---
+title: "MACHINE LEARNING FINAL PROJECT"
+author: "KOFI AGYABENG"
+date: "2025-04-18"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+library(readr)
+library(dplyr)
+library(modelsummary)
+
+library(caret)       # For machine learning functions
+library(rpart)       # For decision trees
+library(randomForest) # For random forest
+library(e1071)       # For additional model functions
+library(ipred)       # For bagging
+library(xgboost)     # For boosting
+library(kknn)        # For KNN
+library(forcats)
+
+library(rstatix)
+library(vcd)
+library(sjmisc)
+library(reshape2)
+library(ggplot2)
+
+```
+
+#Introduction
+
+Mushroom remain a major source of are important sources of foods and medicines for many people globally. Mushrooms are the visible, fleshy reproductive organs of fungi that bear spores and generally form on the surface of soil or nutrient-rich matter. Mushroom poisoning remains a significant health risk globally, particularly among foragers and individuals unfamiliar with the subtle differences between edible and poisonous species. About 6000 to 8000 mushroom exposures occur annually in the United States. About 100 people worldwide die from poisonous mushrooms each year, but this number is may be too low. This is because Europe alone reports 50-100 deaths yearly, and China reports another 50-100 - meaning the global count should be higher than currently estimated(Diaz, 2005; White et al., 2019). In china, mushroom poisoning contributes to about half of all oral poisoning death and it gradually becoming one of the predominant food safety issues(Zhou et al., 2016). In a 2019 mushroom outbreak in china, surveillance data revealed 769 mushroom poisoning cases stemming from 276 independent outbreaks in 17 provincial regions, resulting in 22 deaths and an overall mortality rate of 2.86%(Li et al., 2020). Despite the availability of field guides, it is often difficult for the untrained eye to distinguish between safe and toxic mushrooms based on physical characteristics alone. The objective of this project is to develop a machine learning model to classify mushrooms as edible or poisonous based on observable physical characteristics, reducing the risk of accidental poisoning. This model could ultimately be integrated into mobile applications or decision-support tools for safer mushroom identification.
+
+# Data Preparation
+
+```{r}
+
+## Importing the CSV data into R
+mushroom <- read_csv("agaricus-lepiota.data")
+
+## Removing "..." from variable names
+
+names(mushroom) <- gsub("\\.\\.\\.", "", names(mushroom))
+
+
+
+### Changing variable names
+
+# Original and new names
+old_names <- c("p1", "x", "s3", "n4", "t", "p6", "f", "c", "n9", "k10", "e11", "e12", 
+               "s13", "s14", "w15", "w16", "p17", "w18", "o", "p20", "k21", "s22", "u")
+
+new_names <- c("poisonous", "cap_shape", "cap_surface", "cap_color", "bruises", "odor", 
+               "gill_attachment", "gill_spacing", "gill_size", "gill_color", "stalk_shape", 
+               "stalk_root","stalk_surf_above_ring", "stalk_surf_below_ring",
+               "stalk_color_above_ring", 
+               "stalk_color_below_ring", "veil_type", "veil_color", "ring_number", "ring_type", 
+               "spore_print_color", "population", "habitat")
+
+# Finding the old names that exist in the dataset
+matched <- old_names %in% names(mushroom)
+
+# Replacing old names with new names
+names(mushroom)[match(old_names[matched], names(mushroom))] <- new_names[matched]
+
+
+### changing variable category code name
+
+mushroom <- mushroom %>%
+  mutate(
+    poisonous = recode(as.character(poisonous), e = "edible", p = "poisonous"),
+    cap_shape = recode(as.character(cap_shape), 
+                       b = "bell", c = "conical", x = "convex", f = "flat", 
+                       k = "knobbed", s = "sunken"),
+    cap_surface = recode(as.character(cap_surface),
+                         f = "fibrous", g = "grooves", y = "scaly", s = "smooth"),
+    cap_color = recode(as.character(cap_color),
+                       n = "brown", b = "buff", c = "cinnamon", g = "gray", r = "green",
+                       p = "pink", u = "purple", e = "red", w = "white", y = "yellow"),
+    bruises = recode(as.character(bruises), t = "bruises", f = "no"),
+    odor = recode(as.character(odor),
+                  a = "almond", l = "anise", c = "creosote", y = "fishy", 
+                  f = "foul", m = "musty", n = "none", p = "pungent", s = "spicy"),
+    gill_attachment = recode(as.character(gill_attachment),
+                             a = "attached", d = "descending", f = "free", n = "notched"),
+    gill_spacing = recode(as.character(gill_spacing), c = "close", w = "crowded", d = "distant"),
+    gill_size = recode(as.character(gill_size), b = "broad", n = "narrow"),
+    gill_color = recode(as.character(gill_color),
+                        k = "black", n = "brown", b = "buff", h = "chocolate", 
+                        g = "gray", r = "green", o = "orange", p = "pink", 
+                        u = "purple", e = "red", w = "white", y = "yellow"),
+    stalk_shape = recode(as.character(stalk_shape), e = "enlarging", t = "tapering"),
+    stalk_root = recode(as.character(stalk_root),
+                        b = "bulbous", c = "club", u = "cup", e = "equal", 
+                        z = "rhizomorphs", r = "rooted", `?` = "missing"),
+    stalk_surf_above_ring = recode(as.character(stalk_surf_above_ring),
+                                   f = "fibrous", y = "scaly", k = "silky", s = "smooth"),
+    stalk_surf_below_ring = recode(as.character(stalk_surf_below_ring),
+                                   f = "fibrous", y = "scaly", k = "silky", s = "smooth"),
+    stalk_color_above_ring = recode(as.character(stalk_color_above_ring),
+                                    n = "brown", b = "buff", c = "cinnamon", g = "gray", 
+                                    o = "orange", p = "pink", e = "red", w = "white", y = "yellow"),
+    stalk_color_below_ring = recode(as.character(stalk_color_below_ring),
+                                    n = "brown", b = "buff", c = "cinnamon", g = "gray", 
+                                    o = "orange", p = "pink", e = "red", w = "white", y = "yellow"),
+    veil_type = recode(as.character(veil_type), p = "partial", u = "universal"),
+    veil_color = recode(as.character(veil_color),
+                        n = "brown", o = "orange", w = "white", y = "yellow"),
+    ring_number = recode(as.character(ring_number), n = "none", o = "one", t = "two"),
+    ring_type = recode(as.character(ring_type),
+                       c = "cobwebby", e = "evanescent", f = "flaring", l = "large", 
+                       n = "none", p = "pendant", s = "sheathing", z = "zone"),
+    spore_print_color = recode(as.character(spore_print_color),
+                               k = "black", n = "brown", b = "buff", h = "chocolate", 
+                               r = "green", o = "orange", u = "purple", w = "white", y = "yellow"),
+    population = recode(as.character(population),
+                        a = "abundant", c = "clustered", n = "numerous", 
+                        s = "scattered", v = "several", y = "solitary"),
+    habitat = recode(as.character(habitat),
+                     g = "grasses", l = "leaves", m = "meadows", 
+                     p = "paths", u = "urban", w = "waste", d = "woods")
+  )
+
+
+
+
+## Coding outcome variable 
+
+table(mushroom$poisonous)
+mushroom$poisonous <- ifelse(mushroom$poisonous=="poisonous",1,0)
+mushroom$poisonous <- factor(mushroom$poisonous, levels = c(0, 1), labels = c("edible", "poisonous"))
+
+
+
+## Converting all variables from characters to factor variables
+mushroom <- mushroom %>%
+  mutate(across(where(is.character), as.factor))
+mushroom <- data.frame(mushroom)
+
+## Exploring data structure and summaries
+str(mushroom)
+summary(mushroom)
+
+
+
+   
+```
+
+### Checking the data distribution and combining group low numbers
+
+```{r}
+
+## Cross tabulation of all predictors and outcome
+
+# Loop through all variables except 'poisonous' to create two-way tables
+for (var in names(mushroom)[names(mushroom) != "poisonous"]) {
+  cat("\n--- Two-way table: poisonous vs", var, "---\n")
+  print(table(mushroom$poisonous, mushroom[[var]]))
+}
+
+
+# Combining categories with no/very low observations into similar categories
+mushroom <- mushroom %>%
+  mutate(
+    # cap_shape: merge "conical" and "sunken" into "other"
+    cap_shape = fct_collapse(cap_shape,
+                              other = c("conical
+                                        ", "sunken")),
+
+    # cap_surface: merge "grooves" into "fibrous"
+    cap_surface = fct_collapse(cap_surface,
+                                fibrous = c("fibrous", "grooves")),
+
+    # cap_color: merge "green" and "purple" into "other"
+    cap_color = fct_collapse(cap_color,
+                              other = c("green", "purple", "cinnamon")),
+
+    # odor: combine rare edible odors into "edible_odor", and toxic into "toxic_odor"
+    odor = fct_recode(odor,
+                      edible_odor = "almond",
+                      edible_odor = "anise",
+                      none = "none",
+                      toxic_odor = "creosote",
+                      toxic_odor = "fishy",
+                      toxic_odor = "foul",
+                      toxic_odor = "musty",
+                      toxic_odor = "pungent",
+                      toxic_odor = "spicy"),
+
+    # gill_color: combine "buff", "green", "orange", "red", "yellow" into "other"
+    gill_color = fct_collapse(gill_color,
+                              other = c("buff", "green", "orange", "red", "yellow")),
+
+    # stalk_surf_above_ring: combine "scaly" into "fibrous" (since it's small)
+    stalk_surf_above_ring = fct_collapse(stalk_surf_above_ring,
+                                         fibrous = c("fibrous", "scaly")),
+
+    # stalk_surf_below_ring: same approach
+    stalk_surf_below_ring = fct_collapse(stalk_surf_below_ring,
+                                         fibrous = c("fibrous", "scaly")),
+
+    # stalk_color_above_ring: merge "buff", "cinnamon", "gray", "orange", "red", "yellow" into "other"
+    stalk_color_above_ring = fct_collapse(stalk_color_above_ring,
+                                          other = c("buff", "cinnamon", "gray", "orange", "red", "yellow")),
+
+    # stalk_color_below_ring: same as above
+    stalk_color_below_ring = fct_collapse(stalk_color_below_ring,
+                                          other = c("buff", "cinnamon", "gray", "orange", "red", "yellow")),
+
+    # veil_color: merge "orange" and "yellow" into "brown"
+    veil_color = fct_collapse(veil_color,
+                              brown = c("brown", "orange", "yellow")),
+
+    # ring_number: combine "none" into "one" (based on most similar)
+    ring_number = fct_collapse(ring_number,
+                               one = c("none", "one")),
+
+    # ring_type: merge "none" and "flaring" into "evanescent" (since "none" is rare)
+    ring_type = fct_collapse(ring_type,
+                             evanescent = c("evanescent", "none", "flaring")),
+
+    # spore_print_color: combine "buff", "green", "orange", "purple", "yellow" into "other"
+    spore_print_color = fct_collapse(spore_print_color,
+                                     other = c("buff", "green", "orange", "purple", "yellow")),
+
+    # population: combine "abundant", "clustered", "numerous", "scattered" into "common"
+    population = fct_collapse(population,
+                              common = c("abundant", "clustered", "numerous", "scattered")),
+
+    # habitat: merge "waste" into "urban"
+    habitat = fct_collapse(habitat,
+                           urban = c("urban", "waste"))
+  )
+
+# Loop through all variables except 'poisonous' to create two-way tables
+for (var in names(mushroom)[names(mushroom) != "poisonous"]) {
+  cat("\n--- Two-way table: poisonous vs", var, "---\n")
+  print(table(mushroom$poisonous, mushroom[[var]]))
+}
+
+```
+
+```{r}
+library(dplyr)
+library(forcats)
+
+mushroom <- mushroom %>%
+  mutate(
+    # cap_shape: merge "conical" and "sunken" into "other"
+    cap_shape = fct_collapse(cap_shape,
+                              other = c("conical", "sunken")),
+
+    # cap_surface: merge "grooves" into "fibrous"
+    cap_surface = fct_collapse(cap_surface,
+                                fibrous = c("fibrous", "grooves")),
+
+    # cap_color: merge "green" and "purple" into "other"
+    cap_color = fct_collapse(cap_color,
+                              other = c("green", "purple", "cinnamon")),
+
+    # odor: combine rare edible odors into "edible_odor", and toxic into "toxic_odor"
+    odor = fct_recode(odor,
+                      edible_odor = "almond",
+                      edible_odor = "anise",
+                      none = "none",
+                      toxic_odor = "creosote",
+                      toxic_odor = "fishy",
+                      toxic_odor = "foul",
+                      toxic_odor = "musty",
+                      toxic_odor = "pungent",
+                      toxic_odor = "spicy"),
+
+    # gill_color: combine "buff", "green", "orange", "red", "yellow" into "other"
+    gill_color = fct_collapse(gill_color,
+                              other = c("buff", "green", "orange", "red", "yellow")),
+
+    # stalk_surf_above_ring: combine "scaly" into "fibrous" (since it's small)
+    stalk_surf_above_ring = fct_collapse(stalk_surf_above_ring,
+                                         fibrous = c("fibrous", "scaly")),
+
+    # stalk_surf_below_ring: same approach
+    stalk_surf_below_ring = fct_collapse(stalk_surf_below_ring,
+                                         fibrous = c("fibrous", "scaly")),
+
+    # stalk_color_above_ring: merge "buff", "cinnamon", "gray", "orange", "red", "yellow" into "other"
+    stalk_color_above_ring = fct_collapse(stalk_color_above_ring,
+                                          other = c("buff", "cinnamon", "gray", "orange", "red", "yellow")),
+
+    # stalk_color_below_ring: same as above
+    stalk_color_below_ring = fct_collapse(stalk_color_below_ring,
+                                          other = c("buff", "cinnamon", "gray", "orange", "red", "yellow")),
+
+    # veil_color: merge "orange" and "yellow" into "brown"
+    veil_color = fct_collapse(veil_color,
+                              brown = c("brown", "orange", "yellow")),
+
+    # ring_number: combine "none" into "one" (based on most similar)
+    ring_number = fct_collapse(ring_number,
+                               one = c("none", "one")),
+
+    # ring_type: merge "none" and "flaring" into "evanescent" (since "none" is rare)
+    ring_type = fct_collapse(ring_type,
+                             evanescent = c("evanescent", "none", "flaring")),
+
+    # spore_print_color: combine "buff", "green", "orange", "purple", "yellow" into "other"
+    spore_print_color = fct_collapse(spore_print_color,
+                                     other = c("buff", "green", "orange", "purple", "yellow")),
+
+    # population: combine "abundant", "clustered", "numerous", "scattered" into "common"
+    population = fct_collapse(population,
+                              common = c("abundant", "clustered", "numerous", "scattered")),
+
+    # habitat: merge "waste" into "urban"
+    habitat = fct_collapse(habitat,
+                           urban = c("urban", "waste"))
+  )
+
+# Loop through all variables except 'poisonous' to create two-way tables
+for (var in names(mushroom)[names(mushroom) != "poisonous"]) {
+  cat("\n--- Two-way table: poisonous vs", var, "---\n")
+  print(table(mushroom$poisonous, mushroom[[var]]))
+}
+```
+
+```{r eval=FALSE}
+library(summarytools)
+
+# Overall Comprehensive summary using summarytools
+dfSummary(mushroom) %>% 
+  print(method = "browser", 
+        omit.headings = TRUE,
+        varnumbers = FALSE)
+```
+
+```{r, echo=FALSE, out.width="100%", out.height=="100%"}
+knitr::include_graphics("fig1.png")
+```
+
+### Exploring correlation between the study variable using the cramer v correlation
+
+```{r}
+
+mushroom <- mushroom[ , !(names(mushroom) %in% c("veil_type", "stalk_root", "odor")) ]
+
+
+# + veil_type excluded because it had only one level
+# odor has perfect prediction
+# stalk_root excluded for missing obs
+
+
+library(rstatix)
+library(vcd)
+library(sjmisc)
+library(reshape2)
+
+
+# Select only the categorical variables
+categorical_vars <- mushroom %>% dplyr::select(where(is.factor))
+
+# Function to compute Cramér's V between two categorical variables
+cramers_v_matrix <- function(df) {
+  var_names <- colnames(df)
+  n <- length(var_names)
+  mat <- matrix(NA, nrow = n, ncol = n)
+  colnames(mat) <- var_names
+  rownames(mat) <- var_names
+  
+  for (i in 1:n) {
+    for (j in 1:n) {
+      if (i == j) {
+        mat[i, j] <- 1
+      } else {
+        tbl <- table(df[[i]], df[[j]])
+        mat[i, j] <- assocstats(tbl)$cramer
+      }
+    }
+  }
+  return(as.data.frame(mat))
+}
+
+# Compute Cramér's V correlation matrix
+cramer_matrix <- cramers_v_matrix(categorical_vars)
+
+# Optional: round and view as heatmap
+round(cramer_matrix, 2)
+
+library(ggplot2)
+
+# Melt matrix for ggplot
+melted_cramer <- reshape2::melt(as.matrix(cramer_matrix))
+
+ ggplot(melted_cramer, aes(Var1, Var2, fill = value)) +
+  geom_tile(color = "white") +
+  scale_fill_gradient2(low = "white", high = "darkred", mid = "orange", 
+                       midpoint = 0.3, limit = c(0, 1), space = "Lab", 
+                       name = "Cramér's V") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1)) +
+  coord_fixed()
+
+
+
+```
+
+```{r}
+
+
+
+# Set up tuning grid for alpha (mixing parameter)
+alpha_values <- seq(0, 1, by = 0.1)  # Range from pure ridge to pure lasso
+
+train_data$poisonous <- train_data$poisonous
+# First convert factors to numeric dummy variables using model.matrix
+x_train <- model.matrix(poisonous~ ., data = train_data)[,- 1]
+y_train <- as.numeric(train_data$poisonous)  # Convert to numeric 0/1
+
+x_test <- model.matrix(poisonous~ ., data = test_data)[,- 1]
+y_test <- as.numeric(test_data$poisonous)  # Convert to numeric 0/1
+
+# Create empty list to store results
+results <- list()
+
+# Perform cross-validation for each alpha value
+for (alpha in alpha_values) {
+  set.seed(123)
+  cv_fit <- cv.glmnet(
+    x = x_train,
+    y = as.factor(y_train),
+    alpha = alpha,
+    family = "binomial",
+    type.measure = "auc",
+    nfolds = 10,
+    parallel = TRUE
+  )
+  
+  results[[as.character(alpha)]] <- cv_fit
+}
+
+
+# Find best alpha and lambda
+best_auc <- -Inf
+best_alpha <- NA
+best_lambda <- NA
+
+for (alpha in alpha_values) {
+  cv_fit <- results[[as.character(alpha)]]
+  max_auc <- max(cv_fit$cvm)
+  if (max_auc > best_auc) {
+    best_auc <- max_auc
+    best_alpha <- alpha
+    best_lambda <- cv_fit$lambda[which.max(cv_fit$cvm)]
+  }
+}
+
+# Fit final model with best parameters
+final_model <- glmnet(
+  x = x_train,
+  y = y_train,
+  alpha = best_alpha,
+  family = "binomial",
+  lambda = best_lambda
+)
+
+# Make predictions
+en_pred <- predict(final_model, newx = x_test, type = "response", s = best_lambda)
+en_class <- ifelse(en_pred > 0.5, "poisonous", "edible")
+
+# Evaluate performance
+en_confusion <- table(factor(en_class, levels = c("poisonous", "edible")), 
+                     factor(test_data$poisonous, levels = c("poisonous", "edible")))
+en_roc <- roc(test_data$poisonous, as.vector(en_pred))
+
+# Print results
+cat("\nElastic Net Results:\n")
+print(en_confusion)
+cat("AUC:", auc(en_roc), "\n")
+cat("Optimal alpha:", best_alpha, "(0 = ridge, 1 = lasso)\n")
+cat("Optimal lambda:", best_lambda, "\n")
+
+# Plot coefficient paths for all alphas
+par(mfrow = c(3, 4))
+for (alpha in alpha_values) {
+  fit <- glmnet(x_train, y_train, alpha = alpha, family = "binomial")
+  plot(fit, main = paste("Alpha =", alpha), xvar = "lambda")
+  abline(v = log(best_lambda), col = "red", lty = 2)
+}
+par(mfrow = c(1, 1))
+
+# Plot best model coefficients
+plot(final_model, xvar = "lambda", main = paste("Best Model (Alpha =", best_alpha, ")"))
+abline(v = log(best_lambda), col = "red", lty = 2)
+
+# Variable importance
+coefs <- coef(final_model, s = best_lambda)
+important_vars <- data.frame(
+  variable = rownames(coefs)[-1],  # Remove intercept
+  coefficient = as.numeric(coefs[-1])
+)
+important_vars <- important_vars[order(-abs(important_vars$coefficient)), ]
+
+# Plot top 20 variables
+library(ggplot2)
+ggplot(important_vars[1:20, ], aes(x = reorder(variable, coefficient), y = coefficient)) +
+  geom_bar(stat = "identity") +
+  coord_flip() +
+  labs(title = "Top 20 Important Variables", 
+       x = "Variable",
+       y = "Coefficient") +
+  theme_minimal()
+
+```
+
+```{r}
+# Load required packages
+library(tidyverse)
+library(caret)
+library(glmnet)
+library(randomForest)
+library(e1071)
+library(xgboost)
+library(rpart)
+library(rpart.plot)
+library(kknn)
+library(pROC)
+library(gridExtra)
+
+# Set seed for reproducibility
+set.seed(123)
+
+# Convert all variables to factors
+mushroom <- as.data.frame(lapply(mushroom, as.factor))
+
+# Spliting data into training (70%) and testing (30%) data
+train_index <- createDataPartition(mushroom$poisonous, p = 0.7, list = FALSE)
+train_data <- mushroom[train_index, ]
+test_data <- mushroom[-train_index, ]
+
+# Separating predictors and outcome
+train_x <- train_data %>% dplyr::select(-poisonous)
+test_x <- test_data %>% dplyr::select(-poisonous)
+train_y <- train_data$poisonous
+test_y <- test_data$poisonous
+
+# Ensure consistent factor levels before one-hot encoding
+for (col in names(train_x)) {
+  levels(test_x[[col]]) <- levels(train_x[[col]])
+}
+
+# One-hot encode
+train_x_mat <- model.matrix(~ . - 1, data = train_x)
+test_x_mat <- model.matrix(~ . - 1, data = test_x)
+
+# Fix column mismatch
+missing_cols <- setdiff(colnames(train_x_mat), colnames(test_x_mat))
+for (col in missing_cols) {
+  test_x_mat <- cbind(test_x_mat, setNames(data.frame(0), col))
+}
+test_x_mat <- test_x_mat[, colnames(train_x_mat)]
+
+# CV setup
+cv_ctrl <- trainControl(
+  method = "cv", number = 10,
+  classProbs = TRUE, summaryFunction = twoClassSummary,
+  savePredictions = "final"
+)
+
+# Train models
+models <- list()
+
+
+
+# KNN
+models$knn <- train(
+  poisonous ~ ., data = train_data,
+  method = "knn",
+  tuneLength = 10,
+  trControl = cv_ctrl, metric = "ROC"
+)
+
+# Decision Tree
+models$tree <- train(
+  poisonous ~ ., data = train_data,
+  method = "rpart",
+  trControl = cv_ctrl, metric = "ROC"
+)
+
+# Random Forest
+models$rf <- train(
+  poisonous ~ ., data = train_data,
+  method = "rf",
+  ntree = 100,
+  trControl = cv_ctrl, metric = "ROC"
+)
+
+# SVM
+models$svm <- train(
+  poisonous ~ ., data = train_data,
+  method = "svmRadial",
+  tuneLength = 5,
+  trControl = cv_ctrl, metric = "ROC"
+)
+
+# XGBoost - ensure factor levels are consistent
+train_y_num <- as.numeric(train_y) - 1
+test_y_num <- as.numeric(test_y) - 1
+train_x_xgb <- xgb.DMatrix(data = train_x_mat, label = train_y_num)
+test_x_xgb <- xgb.DMatrix(data = test_x_mat, label = test_y_num)
+xgb_model <- xgboost(data = train_x_xgb, objective = "binary:logistic",
+                     nrounds = 100, eval_metric = "auc", verbose = 0)
+
+# Evaluation function - fixed column name and prediction extraction
+get_metrics <- function(model, newdata, true_y, model_type = "other") {
+  if (model_type == "glmnet") {
+    newx <- if (identical(dim(newdata), dim(train_data))) train_x_mat else test_x_mat
+    pred_prob <- predict(model, newx = newx, type = "prob")[, "poisonous"]
+    pred_class <- predict(model, newx = newx, type = "raw")
+  } else {
+    pred_prob <- predict(model, newdata = newdata, type = "prob")[, "poisonous"]
+    pred_class <- predict(model, newdata = newdata)
+  }
+  
+  # Ensure factor levels match
+  pred_class <- factor(pred_class, levels = levels(true_y))
+  
+  roc_obj <- roc(response = true_y, predictor = pred_prob)
+  cm <- confusionMatrix(pred_class, true_y)
+  data.frame(
+    Accuracy = cm$overall["Accuracy"],
+    AUC = auc(roc_obj),
+    Sensitivity = cm$byClass["Sensitivity"],
+    Specificity = cm$byClass["Specificity"]
+  )
+}
+
+# Get performance metrics
+
+
+
+performance <- lapply(names(models), function(name) {
+  model <- models[[name]]
+  model_type <- if (inherits(model$finalModel, "glmnet")) "glmnet" else "other"
+  
+  tryCatch({
+    # Train metrics
+    if (model_type == "glmnet") {
+      train_prob <- predict(model, newx = train_x_mat, type = "prob")[, "poisonous"]
+      train_class <- predict(model, newx = train_x_mat, type = "raw")
+    } else {
+      train_prob <- predict(model, newdata = train_data, type = "prob")[, "poisonous"]
+      train_class <- predict(model, newdata = train_data)
+    }
+    train_class <- factor(train_class, levels = levels(train_y))
+    train_roc <- roc(response = train_y, predictor = train_prob)
+    
+    # Test metrics
+    if (model_type == "glmnet") {
+      test_prob <- predict(model, newx = test_x_mat, type = "prob")[, "poisonous"]
+      test_class <- predict(model, newx = test_x_mat, type = "raw")
+    } else {
+      test_prob <- predict(model, newdata = test_data, type = "prob")[, "poisonous"]
+      test_class <- predict(model, newdata = test_data)
+    }
+    test_class <- factor(test_class, levels = levels(test_y))
+    test_roc <- roc(response = test_y, predictor = test_prob)
+    
+    # Convert AUC to simple numeric
+    train_auc <- as.numeric(auc(train_roc))
+    test_auc <- as.numeric(auc(test_roc))
+    
+    # Create data frames
+    rbind(
+      data.frame(Model = name, Data = "Train",
+                Accuracy = confusionMatrix(train_class, train_y)$overall["Accuracy"],
+                AUC = train_auc,
+                Sensitivity = confusionMatrix(train_class, train_y)$byClass["Sensitivity"],
+                Specificity = confusionMatrix(train_class, train_y)$byClass["Specificity"]),
+      data.frame(Model = name, Data = "Test",
+                Accuracy = confusionMatrix(test_class, test_y)$overall["Accuracy"],
+                AUC = test_auc,
+                Sensitivity = confusionMatrix(test_class, test_y)$byClass["Sensitivity"],
+                Specificity = confusionMatrix(test_class, test_y)$byClass["Specificity"])
+    )
+  }, error = function(e) {
+    message("Error evaluating ", name, ": ", e$message)
+    NULL
+  })
+}) %>% bind_rows()
+
+# Handle XGBoost separately
+xgb_train_pred <- predict(xgb_model, train_x_xgb)
+xgb_test_pred <- predict(xgb_model, test_x_xgb)
+
+xgb_perf <- rbind(
+  data.frame(Model = "xgboost", Data = "Train",
+             Accuracy = mean((xgb_train_pred > 0.5) == (as.numeric(train_y) - 1)),
+             AUC = as.numeric(auc(roc(response = as.numeric(train_y) - 1, 
+                                 predictor = xgb_train_pred))),
+             Sensitivity = sensitivity(factor(ifelse(xgb_train_pred > 0.5, "poisonous", "edible"),
+                                           levels = levels(train_y)),
+                                     train_y, positive = "poisonous"),
+             Specificity = specificity(factor(ifelse(xgb_train_pred > 0.5, "poisonous", "edible"),
+                                           levels = levels(train_y)),
+                                     train_y, negative = "edible")),
+  data.frame(Model = "xgboost", Data = "Test",
+             Accuracy = mean((xgb_test_pred > 0.5) == (as.numeric(test_y) - 1)),
+             AUC = as.numeric(auc(roc(response = as.numeric(test_y) - 1, 
+                                 predictor = xgb_test_pred))),
+             Sensitivity = sensitivity(factor(ifelse(xgb_test_pred > 0.5, "poisonous", "edible"),
+                                           levels = levels(test_y)),
+                                     test_y, positive = "poisonous"),
+             Specificity = specificity(factor(ifelse(xgb_test_pred > 0.5, "poisonous", "edible"),
+                                           levels = levels(test_y)),
+                                     test_y, negative = "edible"))
+)
+
+performance <- bind_rows(performance, xgb_perf)
+
+print(performance)
+
+
+# ========== Visualizations ==========
+
+# ROC curve function - fixed prediction extraction
+plot_roc_curve <- function(model, test_x, test_y, model_name, model_type = "other") {
+  if (model_type == "glmnet") {
+    prob <- predict(model, newx = test_x_mat, type = "prob")[, "poisonous"]
+  } else {
+    prob <- predict(model, newdata = test_x, type = "prob")[, "poisonous"]
+  }
+  roc_obj <- roc(test_y, prob)
+  plot(roc_obj, main = paste("ROC Curve -", model_name), col = "#E76F51", lwd = 2)
+  auc_text <- paste0("AUC = ", round(auc(roc_obj), 3))
+  legend("bottomright", legend = auc_text, col = "#E76F51", lwd = 2)
+}
+
+# Confusion matrix function - fixed prediction
+plot_confusion_matrix <- function(model, test_x, test_y, model_name, model_type = "other") {
+  pred <- if (model_type == "glmnet") {
+    predict(model, newx = test_x_mat, type = "raw")
+  } else {
+    predict(model, newdata = test_x)
+  }
+  pred <- factor(pred, levels = levels(test_y))
+  cm <- confusionMatrix(pred, test_y)
+  df <- as.data.frame(cm$table)
+  ggplot(df, aes(Prediction, Reference, fill = Freq)) +
+    geom_tile() + geom_text(aes(label = Freq), size = 5) +
+    scale_fill_gradient(low = "white", high = "#2A9D8F") +
+    ggtitle(paste("Confusion Matrix -", model_name)) +
+    theme_minimal()
+}
+
+# Plot ROC curves
+# Corrected ROC curve plotting function
+plot_roc_curve <- function(model, test_data, test_y, model_name, model_type = "other") {
+  tryCatch({
+    # Get predictions based on model type
+    if (model_type == "glmnet") {
+      prob <- predict(model, newx = test_x_mat, type = "prob")[, "poisonous"]
+    } else {
+      prob <- predict(model, newdata = test_data, type = "prob")[, "poisonous"]
+    }
+    
+    # Verify lengths match
+    if (length(test_y) != length(prob)) {
+      stop(paste("Length mismatch in", model_name, 
+                "- Test Y:", length(test_y), 
+                "Predictions:", length(prob)))
+    }
+    
+    # Create ROC curve
+    roc_obj <- roc(response = test_y, predictor = prob)
+    plot(roc_obj, main = paste("ROC Curve -", model_name), col = "#E76F51", lwd = 2)
+    auc_text <- paste0("AUC = ", round(auc(roc_obj), 3))
+    legend("bottomright", legend = auc_text, col = "#E76F51", lwd = 2)
+  }, error = function(e) {
+    message("Error plotting ROC for ", model_name, ": ", e$message)
+    plot(1, type = "n", main = paste("Error -", model_name))
+    text(1, 1, paste("Error:", e$message), col = "red")
+  })
+}
+
+# Plot ROC curves with error handling
+par(mfrow = c(2, 4))
+for (name in names(models)) {
+  type <- if (inherits(models[[name]]$finalModel, "glmnet")) "glmnet" else "other"
+  
+  # Debug output
+  cat("Plotting", name, "- Model type:", type, "\n")
+  
+  plot_roc_curve(models[[name]], test_data, test_y, name, type)
+}
+
+# XGBoost ROC curve (separate handling)
+try({
+  xgb_test_pred <- predict(xgb_model, test_x_xgb)
+  xgb_roc <- roc(response = as.numeric(test_y) - 1, predictor = xgb_test_pred)
+  plot(xgb_roc, main = "ROC Curve - xgboost", col = "#F4A261", lwd = 2)
+  legend("bottomright", legend = paste("AUC =", round(auc(xgb_roc), 3)), 
+         col = "#F4A261", lwd = 2)
+})
+
+par(mfrow = c(1, 1))
+
+
+
+# Decision Tree visualization
+rpart.plot(models$tree$finalModel, main = "Decision Tree")
+
+# Random Forest - Variable Importance
+plot(varImp(models$rf), top = 20, main = "Top 20 Important Variables - Random Forest")
+
+
+
+
+```
+
+```{r}
+library(caret)
+library(dplyr)
+library(pROC)
+library(xgboost)
+#library(yardstick)
+library(tibble)
+library(tidyr)
+
+# Spliting data into training (70%) and testing (30%) data
+train_index <- createDataPartition(mushroom$poisonous, p = 0.7, list = FALSE)
+train_data <- mushroom[train_index, ]
+test_data <- mushroom[-train_index, ]
+
+# Separating predictors and outcome
+train_x <- train_data %>% dplyr::select(-poisonous)
+test_x <- test_data %>% dplyr::select(-poisonous)
+train_y <- train_data$poisonous
+test_y <- test_data$poisonous
+
+# Ensure consistent factor levels before one-hot encoding
+for (col in names(train_x)) {
+  levels(test_x[[col]]) <- levels(train_x[[col]])
+}
+
+# One-hot encode
+train_x_mat <- model.matrix(~ . - 1, data = train_x)
+test_x_mat <- model.matrix(~ . - 1, data = test_x)
+
+# Fix column mismatch
+missing_cols <- setdiff(colnames(train_x_mat), colnames(test_x_mat))
+for (col in missing_cols) {
+  test_x_mat <- cbind(test_x_mat, setNames(data.frame(0), col))
+}
+test_x_mat <- test_x_mat[, colnames(train_x_mat)]
+
+# CV setup
+cv_ctrl <- trainControl(
+  method = "cv", number = 10,
+  classProbs = TRUE, summaryFunction = twoClassSummary,
+  savePredictions = "final"
+)
+
+# Train models
+models <- list()
+
+models$knn <- train(poisonous ~ ., data = train_data, method = "knn", tuneLength = 10, trControl = cv_ctrl, metric = "ROC")
+models$tree <- train(poisonous ~ ., data = train_data, method = "rpart", trControl = cv_ctrl, metric = "ROC")
+models$rf <- train(poisonous ~ ., data = train_data, method = "rf", ntree = 100, trControl = cv_ctrl, metric = "ROC")
+models$svm <- train(poisonous ~ ., data = train_data, method = "svmRadial", tuneLength = 5, trControl = cv_ctrl, metric = "ROC")
+
+# XGBoost - prepare numeric labels
+train_y_num <- as.numeric(train_y) - 1
+test_y_num <- as.numeric(test_y) - 1
+train_x_xgb <- xgb.DMatrix(data = train_x_mat, label = train_y_num)
+test_x_xgb <- xgb.DMatrix(data = test_x_mat, label = test_y_num)
+xgb_model <- xgboost(data = train_x_xgb, objective = "binary:logistic", nrounds = 100, eval_metric = "auc", verbose = 0)
+
+# F1 & Brier helper
+get_additional_metrics <- function(pred_class, pred_prob, true_y) {
+  y_true_bin <- as.numeric(true_y == "poisonous")
+  df <- tibble(truth = true_y, estimate = pred_class)
+  f1 <- yardstick::f_meas(df, truth = truth, estimate = estimate, event_level = "second")$.estimate
+  brier <- mean((pred_prob - y_true_bin)^2)
+  return(c(F1 = f1, Brier = brier))
+}
+
+# Cross-validation error
+cv_results <- resamples(models)
+cv_summary <- summary(cv_results)$statistics$Accuracy
+#cv_error <- 1 - sapply(cv_summary, function(x) x["Mean"])
+
+cv_results <- resamples(models)
+cv_summary <- summary(cv_results)$statistics$Accuracy
+cv_error <- 1 - cv_summary[, "Mean"]
+names(cv_error) <- rownames(cv_summary)
+
+# Evaluation
+performance <- lapply(names(models), function(name) {
+  model <- models[[name]]
+  model_type <- if (inherits(model$finalModel, "glmnet")) "glmnet" else "other"
+  
+  tryCatch({
+    if (model_type == "glmnet") {
+      test_prob <- predict(model, newx = test_x_mat, type = "prob")[, "poisonous"]
+      test_class <- predict(model, newx = test_x_mat, type = "raw")
+    } else {
+      test_prob <- predict(model, newdata = test_data, type = "prob")[, "poisonous"]
+      test_class <- predict(model, newdata = test_data)
+    }
+    test_class <- factor(test_class, levels = levels(test_y))
+    test_roc <- roc(response = test_y, predictor = test_prob)
+    
+    cm <- confusionMatrix(test_class, test_y)
+    add_metrics <- get_additional_metrics(test_class, test_prob, test_y)
+    
+    data.frame(
+      Model = name, Data = "Test",
+      Accuracy = cm$overall["Accuracy"],
+      AUC = auc(test_roc),
+      Sensitivity = cm$byClass["Sensitivity"],
+      Specificity = cm$byClass["Specificity"],
+      F1 = add_metrics["F1"],
+      Brier = add_metrics["Brier"],
+      CV_Error = cv_error[name]
+    )
+  }, error = function(e) {
+    message("Error evaluating ", name, ": ", e$message)
+    NULL
+  })
+}) %>% bind_rows()
+
+# XGBoost performance
+xgb_test_pred <- predict(xgb_model, test_x_xgb)
+xgb_test_class <- factor(ifelse(xgb_test_pred > 0.5, "poisonous", "edible"), levels = levels(test_y))
+xgb_add_metrics <- get_additional_metrics(xgb_test_class, xgb_test_pred, test_y)
+
+xgb_perf <- data.frame(
+  Model = "xgboost", Data = "Test",
+  Accuracy = mean((xgb_test_pred > 0.5) == (as.numeric(test_y) - 1)),
+  AUC = as.numeric(auc(roc(response = as.numeric(test_y) - 1, predictor = xgb_test_pred))),
+  Sensitivity = sensitivity(xgb_test_class, test_y, positive = "poisonous"),
+  Specificity = specificity(xgb_test_class, test_y, negative = "edible"),
+  F1 = xgb_add_metrics["F1"],
+  Brier = xgb_add_metrics["Brier"],
+  CV_Error = NA
+)
+
+# Combine all
+performance <- bind_rows(performance, xgb_perf)
+
+# View results
+print(performance)
+```
+
+
+
+
+```{r}
+
+# Function to calculate F1 score
+calculate_f1 <- function(conf_matrix) {
+  precision <- conf_matrix$byClass["Pos Pred Value"]
+  recall <- conf_matrix$byClass["Sensitivity"]
+  2 * (precision * recall) / (precision + recall)
+}
+
+# Function to calculate Brier score
+calculate_brier <- function(true_y, pred_prob) {
+  true_numeric <- as.numeric(true_y) - 1  # Convert to 0/1
+  mean((true_numeric - pred_prob)^2)
+}
+
+# Enhanced evaluation function
+get_metrics <- function(model, newdata, true_y, model_type = "other") {
+  if (model_type == "glmnet") {
+    newx <- if (identical(dim(newdata), dim(train_data))) train_x_mat else test_x_mat
+    pred_prob <- predict(model, newx = newx, type = "prob")[, "poisonous"]
+    pred_class <- predict(model, newx = newx, type = "raw")
+  } else {
+    pred_prob <- predict(model, newdata = newdata, type = "prob")[, "poisonous"]
+    pred_class <- predict(model, newdata = newdata)
+  }
+  
+  # Ensure factor levels match
+  pred_class <- factor(pred_class, levels = levels(true_y))
+  
+  roc_obj <- roc(response = true_y, predictor = pred_prob)
+  cm <- confusionMatrix(pred_class, true_y, positive = "poisonous")
+  
+  data.frame(
+    Accuracy = cm$overall["Accuracy"],
+    AUC = auc(roc_obj),
+    Sensitivity = cm$byClass["Sensitivity"],
+    Specificity = cm$byClass["Specificity"],
+    F1 = calculate_f1(cm),
+    Brier = calculate_brier(true_y, pred_prob)
+  )
+}
+
+# Get performance metrics with new measures
+performance <- lapply(names(models), function(name) {
+  model <- models[[name]]
+  model_type <- if (inherits(model$finalModel, "glmnet")) "glmnet" else "other"
+  
+  tryCatch({
+    # Train metrics
+    if (model_type == "glmnet") {
+      train_prob <- predict(model, newx = train_x_mat, type = "prob")[, "poisonous"]
+      train_class <- predict(model, newx = train_x_mat, type = "raw")
+    } else {
+      train_prob <- predict(model, newdata = train_data, type = "prob")[, "poisonous"]
+      train_class <- predict(model, newdata = train_data)
+    }
+    train_class <- factor(train_class, levels = levels(train_y))
+    train_cm <- confusionMatrix(train_class, train_y, positive = "poisonous")
+    
+    # Test metrics
+    if (model_type == "glmnet") {
+      test_prob <- predict(model, newx = test_x_mat, type = "prob")[, "poisonous"]
+      test_class <- predict(model, newx = test_x_mat, type = "raw")
+    } else {
+      test_prob <- predict(model, newdata = test_data, type = "prob")[, "poisonous"]
+      test_class <- predict(model, newdata = test_data)
+    }
+    test_class <- factor(test_class, levels = levels(test_y))
+    test_cm <- confusionMatrix(test_class, test_y, positive = "poisonous")
+    
+    # Create data frames with new metrics
+    rbind(
+      data.frame(Model = name, Data = "Train",
+                Accuracy = train_cm$overall["Accuracy"],
+                AUC = as.numeric(auc(roc(response = train_y, predictor = train_prob))),
+                Sensitivity = train_cm$byClass["Sensitivity"],
+                Specificity = train_cm$byClass["Specificity"],
+                F1 = calculate_f1(train_cm),
+                Brier = calculate_brier(train_y, train_prob)),
+      data.frame(Model = name, Data = "Test",
+                Accuracy = test_cm$overall["Accuracy"],
+                AUC = as.numeric(auc(roc(response = test_y, predictor = test_prob))),
+                Sensitivity = test_cm$byClass["Sensitivity"],
+                Specificity = test_cm$byClass["Specificity"],
+                F1 = calculate_f1(test_cm),
+                Brier = calculate_brier(test_y, test_prob))
+    )
+  }, error = function(e) {
+    message("Error evaluating ", name, ": ", e$message)
+    NULL
+  })
+}) %>% bind_rows()
+
+# Handle XGBoost separately with new metrics
+xgb_train_pred <- predict(xgb_model, train_x_xgb)
+xgb_test_pred <- predict(xgb_model, test_x_xgb)
+
+xgb_train_class <- factor(ifelse(xgb_train_pred > 0.5, "poisonous", "edible"),
+                         levels = levels(train_y))
+xgb_test_class <- factor(ifelse(xgb_test_pred > 0.5, "poisonous", "edible"),
+                        levels = levels(test_y))
+
+xgb_cm_train <- confusionMatrix(xgb_train_class, train_y, positive = "poisonous")
+xgb_cm_test <- confusionMatrix(xgb_test_class, test_y, positive = "poisonous")
+
+xgb_perf <- rbind(
+  data.frame(Model = "xgboost", Data = "Train",
+             Accuracy = xgb_cm_train$overall["Accuracy"],
+             AUC = as.numeric(auc(roc(response = as.numeric(train_y) - 1, 
+                                   predictor = xgb_train_pred))),
+             Sensitivity = xgb_cm_train$byClass["Sensitivity"],
+             Specificity = xgb_cm_train$byClass["Specificity"],
+             F1 = calculate_f1(xgb_cm_train),
+             Brier = calculate_brier(train_y, xgb_train_pred)),
+  data.frame(Model = "xgboost", Data = "Test",
+             Accuracy = xgb_cm_test$overall["Accuracy"],
+             AUC = as.numeric(auc(roc(response = as.numeric(test_y) - 1, 
+                                   predictor = xgb_test_pred))),
+             Sensitivity = xgb_cm_test$byClass["Sensitivity"],
+             Specificity = xgb_cm_test$byClass["Specificity"],
+             F1 = calculate_f1(xgb_cm_test),
+             Brier = calculate_brier(test_y, xgb_test_pred))
+)
+
+performance <- bind_rows(performance, xgb_perf)
+
+# Print the comprehensive performance metrics
+print(performance)
+
+# Visualize the comparison of metrics
+library(ggplot2)
+library(tidyr)
+
+# Prepare data for visualization
+perf_long <- performance %>%
+  filter(Data == "Test") %>%  # Focus on test performance
+  select(Model, Accuracy, AUC, F1, Brier) %>%
+  pivot_longer(cols = -Model, names_to = "Metric", values_to = "Value")
+
+# Create comparison plot
+ggplot(perf_long, aes(x = Model, y = Value, fill = Model)) +
+  geom_bar(stat = "identity") +
+  facet_wrap(~Metric, scales = "free_y") +
+  labs(title = "Model Performance Comparison (Test Set)",
+       y = "Metric Value", x = "") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        legend.position = "none")
+
+# Create detailed table with all metrics
+library(knitr)
+kable(performance, digits = 3, caption = "Comprehensive Model Evaluation Metrics")
+```
+
+```{r}
+
+# Function to calculate F1 score
+calculate_f1 <- function(conf_matrix) {
+  precision <- conf_matrix$byClass["Pos Pred Value"]
+  recall <- conf_matrix$byClass["Sensitivity"]
+  2 * (precision * recall) / (precision + recall)
+}
+
+# Function to calculate Brier score
+calculate_brier <- function(true_y, pred_prob) {
+  true_numeric <- as.numeric(true_y) - 1  # Convert to 0/1
+  mean((true_numeric - pred_prob)^2)
+}
+
+# Enhanced evaluation function
+get_metrics <- function(model, newdata, true_y, model_type = "other") {
+  if (model_type == "glmnet") {
+    newx <- if (identical(dim(newdata), dim(train_data))) train_x_mat else test_x_mat
+    pred_prob <- predict(model, newx = newx, type = "prob")[, "poisonous"]
+    pred_class <- predict(model, newx = newx, type = "raw")
+  } else {
+    pred_prob <- predict(model, newdata = newdata, type = "prob")[, "poisonous"]
+    pred_class <- predict(model, newdata = newdata)
+  }
+
+  pred_class <- factor(pred_class, levels = levels(true_y))
+  roc_obj <- roc(response = true_y, predictor = pred_prob)
+  cm <- confusionMatrix(pred_class, true_y, positive = "poisonous")
+
+  data.frame(
+    Accuracy = cm$overall["Accuracy"],
+    AUC = auc(roc_obj),
+    Sensitivity = cm$byClass["Sensitivity"],
+    Specificity = cm$byClass["Specificity"],
+    F1 = calculate_f1(cm),
+    Brier = calculate_brier(true_y, pred_prob)
+  )
+}
+
+# Get performance metrics with CV error
+performance <- lapply(names(models), function(name) {
+  model <- models[[name]]
+  model_type <- if (inherits(model$finalModel, "glmnet")) "glmnet" else "other"
+
+  # Estimate CV error (1 - mean CV accuracy)
+  if (!is.null(model$resample$Accuracy)) {
+    cv_error <- 1 - mean(model$resample$Accuracy)
+  } else {
+    cv_error <- NA
+  }
+
+  tryCatch({
+    # Train metrics
+    if (model_type == "glmnet") {
+      train_prob <- predict(model, newx = train_x_mat, type = "prob")[, "poisonous"]
+      train_class <- predict(model, newx = train_x_mat, type = "raw")
+    } else {
+      train_prob <- predict(model, newdata = train_data, type = "prob")[, "poisonous"]
+      train_class <- predict(model, newdata = train_data)
+    }
+    train_class <- factor(train_class, levels = levels(train_y))
+    train_cm <- confusionMatrix(train_class, train_y, positive = "poisonous")
+
+    # Test metrics
+    if (model_type == "glmnet") {
+      test_prob <- predict(model, newx = test_x_mat, type = "prob")[, "poisonous"]
+      test_class <- predict(model, newx = test_x_mat, type = "raw")
+    } else {
+      test_prob <- predict(model, newdata = test_data, type = "prob")[, "poisonous"]
+      test_class <- predict(model, newdata = test_data)
+    }
+    test_class <- factor(test_class, levels = levels(test_y))
+    test_cm <- confusionMatrix(test_class, test_y, positive = "poisonous")
+
+    # Create data frames with new metrics
+    rbind(
+      data.frame(Model = name, Data = "Train",
+                 Accuracy = train_cm$overall["Accuracy"],
+                 AUC = as.numeric(auc(roc(response = train_y, predictor = train_prob))),
+                 Sensitivity = train_cm$byClass["Sensitivity"],
+                 Specificity = train_cm$byClass["Specificity"],
+                 F1 = calculate_f1(train_cm),
+                 Brier = calculate_brier(train_y, train_prob),
+                 CV_Error = cv_error),
+      data.frame(Model = name, Data = "Test",
+                 Accuracy = test_cm$overall["Accuracy"],
+                 AUC = as.numeric(auc(roc(response = test_y, predictor = test_prob))),
+                 Sensitivity = test_cm$byClass["Sensitivity"],
+                 Specificity = test_cm$byClass["Specificity"],
+                 F1 = calculate_f1(test_cm),
+                 Brier = calculate_brier(test_y, test_prob),
+                 CV_Error = cv_error)
+    )
+  }, error = function(e) {
+    message("Error evaluating ", name, ": ", e$message)
+    NULL
+  })
+}) %>% bind_rows()
+
+# Handle XGBoost separately with new metrics and CV error
+cv_error_xgb <- if (!is.null(xgb_model$resample$Accuracy)) {
+  1 - mean(xgb_model$resample$Accuracy)
+} else NA
+
+xgb_train_pred <- predict(xgb_model, train_x_xgb)
+xgb_test_pred <- predict(xgb_model, test_x_xgb)
+
+xgb_train_class <- factor(ifelse(xgb_train_pred > 0.5, "poisonous", "edible"),
+                          levels = levels(train_y))
+xgb_test_class <- factor(ifelse(xgb_test_pred > 0.5, "poisonous", "edible"),
+                         levels = levels(test_y))
+
+xgb_cm_train <- confusionMatrix(xgb_train_class, train_y, positive = "poisonous")
+xgb_cm_test <- confusionMatrix(xgb_test_class, test_y, positive = "poisonous")
+
+xgb_perf <- rbind(
+  data.frame(Model = "xgboost", Data = "Train",
+             Accuracy = xgb_cm_train$overall["Accuracy"],
+             AUC = as.numeric(auc(roc(response = as.numeric(train_y) - 1,
+                                      predictor = xgb_train_pred))),
+             Sensitivity = xgb_cm_train$byClass["Sensitivity"],
+             Specificity = xgb_cm_train$byClass["Specificity"],
+             F1 = calculate_f1(xgb_cm_train),
+             Brier = calculate_brier(train_y, xgb_train_pred),
+             CV_Error = cv_error_xgb),
+  data.frame(Model = "xgboost", Data = "Test",
+             Accuracy = xgb_cm_test$overall["Accuracy"],
+             AUC = as.numeric(auc(roc(response = as.numeric(test_y) - 1,
+                                      predictor = xgb_test_pred))),
+             Sensitivity = xgb_cm_test$byClass["Sensitivity"],
+             Specificity = xgb_cm_test$byClass["Specificity"],
+             F1 = calculate_f1(xgb_cm_test),
+             Brier = calculate_brier(test_y, xgb_test_pred),
+             CV_Error = cv_error_xgb)
+)
+
+# Combine all results
+performance <- bind_rows(performance, xgb_perf)
+
+# Print the final performance metrics
+print(performance)
+
+
+
+
+```
+
+
+
+
+```{r}
+
+# Corrected ROC curve plotting function
+plot_roc_curve <- function(model, test_data, test_y, model_name, model_type = "other") {
+  tryCatch({
+    # Get predictions based on model type
+    if (model_type == "glmnet") {
+      prob <- predict(model, newx = test_x_mat, type = "prob")[, "poisonous"]
+    } else {
+      prob <- predict(model, newdata = test_data, type = "prob")[, "poisonous"]
+    }
+    
+    # Verify lengths match
+    if (length(test_y) != length(prob)) {
+      stop(paste("Length mismatch in", model_name, 
+                "- Test Y:", length(test_y), 
+                "Predictions:", length(prob)))
+    }
+    
+    # Create ROC curve
+    roc_obj <- roc(response = test_y, predictor = prob)
+    plot(roc_obj, main = paste("ROC Curve -", model_name), col = "#E76F51", lwd = 2)
+    auc_text <- paste0("AUC = ", round(auc(roc_obj), 3))
+    legend("bottomright", legend = auc_text, col = "#E76F51", lwd = 2)
+  }, error = function(e) {
+    message("Error plotting ROC for ", model_name, ": ", e$message)
+    plot(1, type = "n", main = paste("Error -", model_name))
+    text(1, 1, paste("Error:", e$message), col = "red")
+  })
+}
+
+# Plot ROC curves with error handling
+par(mfrow = c(2, 4))
+for (name in names(models)) {
+  type <- if (inherits(models[[name]]$finalModel, "glmnet")) "glmnet" else "other"
+  
+  # Debug output
+  cat("Plotting", name, "- Model type:", type, "\n")
+  
+  plot_roc_curve(models[[name]], test_data, test_y, name, type)
+}
+
+# XGBoost ROC curve (separate handling)
+try({
+  xgb_test_pred <- predict(xgb_model, test_x_xgb)
+  xgb_roc <- roc(response = as.numeric(test_y) - 1, predictor = xgb_test_pred)
+  plot(xgb_roc, main = "ROC Curve - xgboost", col = "#F4A261", lwd = 2)
+  legend("bottomright", legend = paste("AUC =", round(auc(xgb_roc), 3)), 
+         col = "#F4A261", lwd = 2)
+})
+
+par(mfrow = c(1, 1))
+
+
+```
+
+## FITTING LOGISTIC REGRESSION MODEL WITH THE FOUR TOPE IMPORTANT VARIABLES FROM THE RANDOM FOREST
+
+```{r}
+
+
+
+formula <- as.formula( paste0("poisonous ~  gill_size + stalk_surf_above_ring + stalk_surf_below_ring + spore_print_color"))
+
+
+
+# Define training control with 10-fold cross-validation
+train_control <- trainControl(
+  method = "cv",
+  number = 10,
+  savePredictions = "final",
+  classProbs = TRUE,
+  summaryFunction = twoClassSummary
+)
+  
+
+# Train logistic regression model
+logit_model <- train(
+  formula,
+  data = train_data,
+  method = "glm",
+  family = "binomial",
+  trControl = train_control,
+  metric = "ROC"
+)
+
+# Make predictions on test set
+logit_pred <- predict(logit_model, newdata = test_data)
+logit_prob <- predict(logit_model, newdata = test_data, type = "prob")[, "poisonous"]
+
+# Evaluate performance
+logit_confusion <- confusionMatrix(logit_pred, test_data$poisonous, positive = "poisonous")
+logit_roc <- roc(response = test_data$poisonous, predictor = logit_prob)
+
+# Print results
+print(logit_model)
+print(logit_confusion)
+cat("Logistic Regression AUC:", auc(logit_roc), "\n")
+
+```
+
+
+
+```{r}
+library(caret)
+library(pROC)
+library(MLmetrics)  # for F1_Score
+
+# Define formula
+formula <- as.formula("poisonous ~ gill_size + stalk_surf_above_ring + stalk_surf_below_ring + spore_print_color")
+
+# Define training control with 10-fold cross-validation
+train_control <- trainControl(
+  method = "cv",
+  number = 10,
+  savePredictions = "final",
+  classProbs = TRUE,
+  summaryFunction = twoClassSummary
+)
+
+# Train logistic regression model
+logit_model <- train(
+  formula,
+  data = train_data,
+  method = "glm",
+  family = "binomial",
+  trControl = train_control,
+  metric = "ROC"
+)
+
+## --- TRAINING DATA EVALUATION ---
+train_pred <- predict(logit_model, newdata = train_data)
+train_prob <- predict(logit_model, newdata = train_data, type = "prob")[, "poisonous"]
+train_conf <- confusionMatrix(train_pred, train_data$poisonous, positive = "poisonous")
+train_roc <- roc(response = train_data$poisonous, predictor = train_prob)
+train_f1 <- F1_Score(y_pred = train_pred, y_true = train_data$poisonous, positive = "poisonous")
+train_true_numeric <- ifelse(train_data$poisonous == "poisonous", 1, 0)
+train_brier <- mean((train_prob - train_true_numeric)^2)
+
+## --- TESTING DATA EVALUATION ---
+test_pred <- predict(logit_model, newdata = test_data)
+test_prob <- predict(logit_model, newdata = test_data, type = "prob")[, "poisonous"]
+test_conf <- confusionMatrix(test_pred, test_data$poisonous, positive = "poisonous")
+test_roc <- roc(response = test_data$poisonous, predictor = test_prob)
+test_f1 <- F1_Score(y_pred = test_pred, y_true = test_data$poisonous, positive = "poisonous")
+test_true_numeric <- ifelse(test_data$poisonous == "poisonous", 1, 0)
+test_brier <- mean((test_prob - test_true_numeric)^2)
+
+# --- OUTPUT ---
+cat("=== Logistic Regression Results ===\n")
+print(logit_model)
+
+cat("\n--- Training Performance ---\n")
+print(train_conf)
+cat("AUC:", as.numeric(train_roc$auc), "\n")
+cat("F1 Score:", train_f1, "\n")
+cat("Brier Score:", train_brier, "\n")
+
+cat("\n--- Testing Performance ---\n")
+print(test_conf)
+cat("AUC:", as.numeric(test_roc$auc), "\n")
+cat("F1 Score:", test_f1, "\n")
+cat("Brier Score:", test_brier, "\n")
+
+
+```

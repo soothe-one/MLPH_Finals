@@ -1,0 +1,87 @@
+"0","library(readr)"
+"0","library(dplyr)"
+"2","
+Attaching package: ‘dplyr’
+
+"
+"2","The following objects are masked from ‘package:stats’:
+
+    filter, lag
+
+"
+"2","The following objects are masked from ‘package:base’:
+
+    intersect, setdiff, setequal, union
+
+"
+"0","library(modelsummary)"
+"2","Registered S3 method overwritten by 'data.table':
+  method           from
+  print.data.table     
+"
+"0","library(caret)       # For machine learning functions"
+"2","Loading required package: ggplot2
+"
+"2","Loading required package: lattice
+"
+"0","library(rpart)       # For decision trees"
+"0","library(randomForest) # For random forest"
+"2","randomForest 4.7-1.2
+"
+"2","Type rfNews() to see new features/changes/bug fixes.
+"
+"2","
+Attaching package: ‘randomForest’
+
+"
+"2","The following object is masked from ‘package:ggplot2’:
+
+    margin
+
+"
+"2","The following object is masked from ‘package:dplyr’:
+
+    combine
+
+"
+"0","library(e1071)       # For additional model functions"
+"0","library(ipred)       # For bagging"
+"0","library(xgboost)     # For boosting"
+"2","
+Attaching package: ‘xgboost’
+
+"
+"2","The following object is masked from ‘package:dplyr’:
+
+    slice
+
+"
+"0","library(kknn)        # For KNN"
+"2","
+Attaching package: ‘kknn’
+
+"
+"2","The following object is masked from ‘package:caret’:
+
+    contr.dummy
+
+"
+"0","library(forcats)"
+"0",""
+"0","library(rstatix)"
+"2","
+Attaching package: ‘rstatix’
+
+"
+"2","The following object is masked from ‘package:stats’:
+
+    filter
+
+"
+"0","library(vcd)"
+"2","Loading required package: grid
+"
+"0","library(sjmisc)"
+"0","library(reshape2)"
+"0","library(ggplot2)"
+"0",""
