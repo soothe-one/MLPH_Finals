@@ -1,8 +1,17 @@
 # MLPH_Finals
 
-## Overview
-xxxxxxxxx
+## Introduction
+
+Mushroom remain a major source of are important sources of foods and medicines for many people globally. Mushrooms are the visible, fleshy reproductive organs of fungi that bear spores and generally form on the surface of soil or nutrient-rich matter. Mushroom poisoning remains a significant health risk globally, particularly among foragers and individuals unfamiliar with the subtle differences between edible and poisonous species. About 6000 to 8000 mushroom exposures occur annually in the United States. About 100 people worldwide die from poisonous mushrooms each year, but this number is may be too low. This is because Europe alone reports 50-100 deaths yearly, and China reports another 50-100 - meaning the global count should be higher than currently estimated(Diaz, 2005; White et al., 2019). In china, mushroom poisoning contributes to about half of all oral poisoning death and it gradually becoming one of the predominant food safety issues(Zhou et al., 2016). In a 2019 mushroom outbreak in china, surveillance data revealed 769 mushroom poisoning cases stemming from 276 independent outbreaks in 17 provincial regions, resulting in 22 deaths and an overall mortality rate of 2.86%(Li et al., 2020). Despite the availability of field guides, it is often difficult for the untrained eye to distinguish between safe and toxic mushrooms based on physical characteristics alone. The objective of this project is to develop a machine learning model to classify mushrooms as edible or poisonous based on observable physical characteristics, reducing the risk of accidental poisoning. This model could ultimately be integrated into mobile applications or decision-support tools for safer mushroom identification.
 
 ## Data Decsription
 
-xxxxxxx
+I used the publicly available Mushroom Dataset from the UCI Machine Learning Repository, originally derived from the Audubon Society Field Guide to North American Mushrooms( https://archive.ics.uci.edu/dataset/73/mushroom). The dataset contains 8124 instances with 22 features. The outcome of interest is a binary variable, poisonous with options edible = e or poisonous = p. All the other features are categorical. This dataset provides a rich set of features for classification tasks.
+
+## Methods
+
+The work flow be preceeded by cleaning and restructuring data, followed by data exploration before caarrying out the data anlysis. In the original dataset, the variable names were as shown in the column “var” in Table 1 - Appendix, but were relabelled to their actual names variable names in the column “Variable Name”. Similarly, labels of the categories of each variable were changed from alphabetical letters to their full category names and declared as factor variables. Due to a lack of observations in some of the categories, they were combined with other similar categories to avoid running into issues of perfect predictions with some of the models. Some variables like veil type was excluded because it had only 1 category (partial), which made it impossible for it to be used in the modelling. Odor had perfect prediction distribution with the outcome variable, while stalk root was excluded because it had 30.5% missing observations, which may affect the sample size when complete case analysis is done in the regularisation models(ridge, lasso and elastic net). Also, stalk root was highly correlated with the other stalk variables so most of the information that stalk root had to offer could be sourced from the other stalk variables.
+
+## Key Insights
+
+The ensemble models used in this analysis were Random Forest and XGBoost. Both models performed equally well as they showed perfect classification performance, with accuracy, sensitivity, specificity, AUC, and F1-score all equal to 100% on both training and testing data. Again, the Brier scores were zero which shows that their predicted probabilities were well-calibrated. These results indicate that ensemble models are powerful for this type of classification problem. 
