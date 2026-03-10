@@ -1,0 +1,1050 @@
+---
+title: "MACHINE LEARNING FINAL PROJECT"
+author: "KOFI AGYABENG"
+date: "2025-04-18"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE,
+                      message = FALSE,
+                      warning = FALSE, 
+                      dpi = 300)
+```
+
+```{r , eval=FALSE, echo=FALSE, results='hide'}
+
+rm(list=ls())
+
+```
+
+
+
+```{r,  results='hide'}
+library(dplyr)         # Data manipulation
+library(tidyr)         # Data reshaping (spread, gather, pivot)
+library(forcats)       # Handling categorical variables
+library(readr)         # Fast reading of data files
+library(reshape2)      # Reshaping data between wide and long formats
+library(tidyverse)     # Includes dplyr, ggplot2, readr, tidyr, etc.
+
+# Data visualization
+library(ggplot2)       # Plotting
+library(gridExtra)     # Arranging multiple ggplots
+library(rpart.plot)    # Plotting decision trees
+
+# Machine learning and modeling
+library(caret)         # Unified interface for training and tuning ML models
+library(glmnet)        # Regularized regression (Lasso, Ridge, Elastic Net)
+library(randomForest)  # Random Forest
+library(e1071)         # SVM and Naive Bayes
+library(xgboost)       # Extreme Gradient Boosting
+library(rpart)         # Recursive partitioning (decision trees)
+library(kknn)          # k-Nearest Neighbors
+library(ipred)         # Bagging models
+library(MLmetrics)     # F1_Score, other ML metrics
+
+# Model evaluation
+library(pROC)          # ROC curve and AUC
+library(MLmetrics)     # Metrics like F1_Score, Brier score
+
+# Statistical analysis and summaries
+library(rstatix)       # Convenient wrappers for common stats tests
+library(vcd)           # Visualizing categorical data
+library(sjmisc)        # Variable transformation, summaries
+library(summarytools)  # Descriptive statistics and tables
+
+# Reporting and output
+library(knitr)         # Dynamic report generation
+library(modelsummary)  # Model summaries and regression tables
+
+```
+
+
+
+# Introduction
+
+Mushrooms remain a major source of food and medicines for many people globally. Mushrooms are the visible, fleshy reproductive organs of fungi that bear spores and generally form on the surface of soil or nutrient-rich matter. Mushroom poisoning remains a significant health risk globally, particularly among foragers and individuals unfamiliar with the subtle differences between edible and poisonous species. About 6000 to 8000 mushroom exposures occur annually in the United States. About 100 people worldwide die from mushroom poisoning each year, but this number may be an understatement as Europe alone reports 50-100 deaths yearly, and China reports another 50-100 (Diaz, 2005; White et al., 2019). In China, mushroom poisoning contributes to about half of all oral poisoning deaths, and it gradually becoming one of the predominant food safety issues(Zhou et al., 2016). In a 2019 mushroom outbreak in China, surveillance data revealed 769 mushroom poisoning cases stemming from 276 independent outbreaks in 17 provincial regions, resulting in 22 deaths and an overall mortality rate of 2.86\%(Li et al., 2020). Despite the availability of field guides, it is often difficult for the untrained eye to distinguish between safe and toxic mushrooms based on physical characteristics alone. To address this challenge, this project aims to develop a machine learning model to classify mushrooms as edible or poisonous based on observable physical characteristics, reducing the risk of accidental poisoning. This model could ultimately be integrated into mobile applications or decision-support tools for safer mushroom identification.
+
+## Related Works
+
+Previous studies have explored mushroom classification using various machine learning techniques, with mixed success. Single-classifier approaches, such as Bayesian networks (Beniwal et al., 2015) and Hoeffding trees (Lavanya, 2017), achieved high accuracy (97–100\%) but relied heavily on features like odor—a known perfect predictor of toxicity—or invariant traits like veil type, which had only one category in their datasets. These limitations reduce real-world applicability, as odor may be subjective or unavailable in field conditions. More robust ensemble methods, such as Random Forests (Pinky et al., 2019) and feature-engineered decision trees (Wibowo et al., 2018; Ismail et al., 2018), improved performance (up to 99.93\% accuracy) but still depended on curated feature subsets, potentially overlooking simpler, interpretable models.
+This project extends prior work by addressing these gaps. First, I exclude odor and veil type to simulate practical scenarios where such definitive features are absent. Second, I evaluate not only ensemble methods (XGBoost, and Random Forest) but also regularised regression (Lasso/Ridge) and binary logistic regression, balancing accuracy with interpretability. Unlike earlier studies that focused narrowly on algorithmic performance (Verma \& Dutta, 2018; Khan et al., 2018), our comparative approach identifies the most reliable model for real-world use, prioritising generalizability and feature robustness.
+
+# Methods
+
+## Description of Data
+
+I used the publicly available Mushroom Dataset from the UCI Machine Learning Repository, originally derived from the Audubon Society Field Guide to North American Mushrooms( https://archive.ics.uci.edu/dataset/73/mushroom). The dataset contains 8124 instances with 22 features. The outcome of interest is a binary variable, poisonous with options edible = e or poisonous = p. All the other features are categorical. This dataset provides a rich set of features for classification tasks.
+
+## Data Preprocessing
+
+In the original dataset, the variable names were as shown in the column “var” in Table 1 - Appendix, but were relabelled to their actual names variable names in the column “Variable Name”. Similarly, labels of the categories of each variable were changed from alphabetical letters to their full category names and declared as factor variables. Due to a lack of observations in some of the categories, they were combined with other similar categories to avoid running into issues of perfect predictions with some of the models. Some variables like veil type was excluded because it had only 1 category (partial), which made it impossible for it to be used in the modelling. Odor had perfect prediction distribution with the outcome variable, while stalk root was excluded because it had 30.5\% missing observations, which may affect the sample size when complete case analysis is done in the regularisation models(ridge, lasso and elastic net). Also, stalk root was highly correlated with the other stalk variables so most of the information that stalk root had to offer could be sourced from the other stalk variables.
+
+
+```{r, results='hide'}
+
+## Importing the CSV data into R
+mushroom <- read_csv("agaricus-lepiota.data")
+
+## Removing "..." from variable names
+
+names(mushroom) <- gsub("\\.\\.\\.", "", names(mushroom))
+
+
+
+### Changing variable names
+
+# Original and new names
+old_names <- c("p1", "x", "s3", "n4", "t", "p6", "f", "c", "n9", "k10", "e11", "e12", 
+               "s13", "s14", "w15", "w16", "p17", "w18", "o", "p20", "k21", "s22", "u")
+
+new_names <- c("poisonous", "cap_shape", "cap_surface", "cap_color", "bruises", "odor", 
+               "gill_attachment", "gill_spacing", "gill_size", "gill_color", "stalk_shape", 
+               "stalk_root","stalk_surf_above_ring", "stalk_surf_below_ring",
+               "stalk_color_above_ring", 
+               "stalk_color_below_ring", "veil_type", "veil_color", "ring_number", "ring_type", 
+               "spore_print_color", "population", "habitat")
+
+# Finding the old names that exist in the dataset
+matched <- old_names %in% names(mushroom)
+
+# Replacing old names with new names
+names(mushroom)[match(old_names[matched], names(mushroom))] <- new_names[matched]
+
+
+### changing variable category code name
+
+mushroom <- mushroom %>%
+  mutate(
+    poisonous = recode(as.character(poisonous), e = "edible", p = "poisonous"),
+    cap_shape = recode(as.character(cap_shape), 
+                       b = "bell", c = "conical", x = "convex", f = "flat", 
+                       k = "knobbed", s = "sunken"),
+    cap_surface = recode(as.character(cap_surface),
+                         f = "fibrous", g = "grooves", y = "scaly", s = "smooth"),
+    cap_color = recode(as.character(cap_color),
+                       n = "brown", b = "buff", c = "cinnamon", g = "gray", r = "green",
+                       p = "pink", u = "purple", e = "red", w = "white", y = "yellow"),
+    bruises = recode(as.character(bruises), t = "bruises", f = "no"),
+    odor = recode(as.character(odor),
+                  a = "almond", l = "anise", c = "creosote", y = "fishy", 
+                  f = "foul", m = "musty", n = "none", p = "pungent", s = "spicy"),
+    gill_attachment = recode(as.character(gill_attachment),
+                             a = "attached", d = "descending", f = "free", n = "notched"),
+    gill_spacing = recode(as.character(gill_spacing), c = "close", w = "crowded", d = "distant"),
+    gill_size = recode(as.character(gill_size), b = "broad", n = "narrow"),
+    gill_color = recode(as.character(gill_color),
+                        k = "black", n = "brown", b = "buff", h = "chocolate", 
+                        g = "gray", r = "green", o = "orange", p = "pink", 
+                        u = "purple", e = "red", w = "white", y = "yellow"),
+    stalk_shape = recode(as.character(stalk_shape), e = "enlarging", t = "tapering"),
+    stalk_root = recode(as.character(stalk_root),
+                        b = "bulbous", c = "club", u = "cup", e = "equal", 
+                        z = "rhizomorphs", r = "rooted", `?` = "missing"),
+    stalk_surf_above_ring = recode(as.character(stalk_surf_above_ring),
+                                   f = "fibrous", y = "scaly", k = "silky", s = "smooth"),
+    stalk_surf_below_ring = recode(as.character(stalk_surf_below_ring),
+                                   f = "fibrous", y = "scaly", k = "silky", s = "smooth"),
+    stalk_color_above_ring = recode(as.character(stalk_color_above_ring),
+                                    n = "brown", b = "buff", c = "cinnamon", g = "gray", 
+                                    o = "orange", p = "pink", e = "red", w = "white", y = "yellow"),
+    stalk_color_below_ring = recode(as.character(stalk_color_below_ring),
+                                    n = "brown", b = "buff", c = "cinnamon", g = "gray", 
+                                    o = "orange", p = "pink", e = "red", w = "white", y = "yellow"),
+    veil_type = recode(as.character(veil_type), p = "partial", u = "universal"),
+    veil_color = recode(as.character(veil_color),
+                        n = "brown", o = "orange", w = "white", y = "yellow"),
+    ring_number = recode(as.character(ring_number), n = "none", o = "one", t = "two"),
+    ring_type = recode(as.character(ring_type),
+                       c = "cobwebby", e = "evanescent", f = "flaring", l = "large", 
+                       n = "none", p = "pendant", s = "sheathing", z = "zone"),
+    spore_print_color = recode(as.character(spore_print_color),
+                               k = "black", n = "brown", b = "buff", h = "chocolate", 
+                               r = "green", o = "orange", u = "purple", w = "white", y = "yellow"),
+    population = recode(as.character(population),
+                        a = "abundant", c = "clustered", n = "numerous", 
+                        s = "scattered", v = "several", y = "solitary"),
+    habitat = recode(as.character(habitat),
+                     g = "grasses", l = "leaves", m = "meadows", 
+                     p = "paths", u = "urban", w = "waste", d = "woods")
+  )
+
+
+
+## Converting all variables from characters to factor variables
+mushroom <- mushroom %>%
+  mutate(across(where(is.character), as.factor))
+mushroom <- data.frame(mushroom)
+
+
+
+## Exploring data structure
+str(mushroom)
+
+
+   
+```
+
+
+
+**Summary ditribution of each varaible in the data set (This will be opened in a HTML file)**
+
+
+```{r , results='hide'}
+
+dfSummary(mushroom) %>% 
+  print(method = "browser", 
+        omit.headings = TRUE,
+        varnumbers = FALSE)
+```
+
+
+
+```{r,  results='hide'}
+
+## Cross tabulation of all predictors and outcome(poisonous)
+
+for (var in names(mushroom)[names(mushroom) != "poisonous"]) {
+  cat("\n--- Two-way table: poisonous vs", var, "---\n")
+  print(table(mushroom$poisonous, mushroom[[var]]))
+}
+```
+
+
+
+
+
+
+```{r,  results='hide'}
+# Combining categories with no/very low observations into similar categories
+
+
+mushroom <- mushroom %>%
+  mutate(
+    # cap_shape: merge "conical" and "sunken" into "other"
+    cap_shape = fct_collapse(cap_shape,
+                              other = c("conical", "sunken")),
+
+    # cap_surface: merge "grooves" into "fibrous"
+    cap_surface = fct_collapse(cap_surface,
+                                fibrous = c("fibrous", "grooves")),
+
+    # cap_color: merge "green" and "purple" into "other"
+    cap_color = fct_collapse(cap_color,
+                              other = c("green", "purple", "cinnamon")),
+
+    # odor: combine rare edible odors into "edible_odor", and toxic into "toxic_odor"
+    odor = fct_recode(odor,
+                      edible_odor = "almond",
+                      edible_odor = "anise",
+                      none = "none",
+                      toxic_odor = "creosote",
+                      toxic_odor = "fishy",
+                      toxic_odor = "foul",
+                      toxic_odor = "musty",
+                      toxic_odor = "pungent",
+                      toxic_odor = "spicy"),
+
+    # gill_color: combine "buff", "green", "orange", "red", "yellow" into "other"
+    gill_color = fct_collapse(gill_color,
+                              other = c("buff", "green", "orange", "red", "yellow")),
+
+    # stalk_surf_above_ring: combine "scaly" into "fibrous" (since it's small)
+    stalk_surf_above_ring = fct_collapse(stalk_surf_above_ring,
+                                         fibrous = c("fibrous", "scaly")),
+
+    # stalk_surf_below_ring: same approach
+    stalk_surf_below_ring = fct_collapse(stalk_surf_below_ring,
+                                         fibrous = c("fibrous", "scaly")),
+
+    # stalk_color_above_ring: merge "buff", "cinnamon", "gray", "orange", "red", "yellow" into "other"
+    stalk_color_above_ring = fct_collapse(stalk_color_above_ring,
+                                          other = c("buff", "cinnamon", "gray", "orange", "red", "yellow")),
+
+    # stalk_color_below_ring: same as above
+    stalk_color_below_ring = fct_collapse(stalk_color_below_ring,
+                                          other = c("buff", "cinnamon", "gray", "orange", "red", "yellow")),
+
+    # veil_color: merge "orange" and "yellow" into "brown"
+    veil_color = fct_collapse(veil_color,
+                              brown = c("brown", "orange", "yellow")),
+
+    # ring_number: combine "none" into "one" (based on most similar)
+    ring_number = fct_collapse(ring_number,
+                               one = c("none", "one")),
+
+    # ring_type: merge "none" and "flaring" into "evanescent" (since "none" is rare)
+    ring_type = fct_collapse(ring_type,
+                             evanescent = c("evanescent", "none", "flaring")),
+
+    # spore_print_color: combine "buff", "green", "orange", "purple", "yellow" into "other"
+    spore_print_color = fct_collapse(spore_print_color,
+                                     other = c("buff", "green", "orange", "purple", "yellow")),
+
+    # population: combine "abundant", "clustered", "numerous", "scattered" into "common"
+    population = fct_collapse(population,
+                              common = c("abundant", "clustered", "numerous", "scattered")),
+
+    # habitat: merge "waste" into "urban"
+    habitat = fct_collapse(habitat,
+                           urban = c("urban", "waste"))
+  )
+```
+
+
+
+```{r,  results='hide'}
+### Checking the distribution of the predictors by the outcome again
+
+
+# Loop through all variables except 'poisonous' to create two-way tables
+for (var in names(mushroom)[names(mushroom) != "poisonous"]) {
+  cat("\n--- Two-way table: poisonous vs", var, "---\n")
+  print(table(mushroom$poisonous, mushroom[[var]]))
+}
+
+```
+
+
+## Data Exploration and Model Development
+
+Since all the variables in the dataset are categorical, I explored the summary distribution of the data using frequencies, percentages and cross-tabulations between the outcome variable and the predictors. Bar charts were used to show the distribution of the variables. To assess the correlation between the variables, the Cramer-V’s correlation estimator was used and the strength of the association was shown using a heat plot.  
+
+In terms of the machine learning models, seven models including four single classification algorithms, 1 optimal regularisation model and two ensemble models were fitted to explore their performances: Logistic Regression, Decision Tree, 
+
+K-Nearest Neighbors (KNN), Support Vector Machine, Lasso,   Random Forest, and eXtreme Gradient Boosting (XGBoost) with 10-fold cross-validation to tune hyperparameters and select the best model before final testing. Elastic net models with alpha ranging from 0 to 1, varying by 0.1 to cover both ridge and lasso models, were also fitted. 
+
+In the Decision Trees model, the data is recursively partitioned into subsets by selecting the most informative features at each node. It creates a tree-like structure where each node represents a decision based on a feature, and each leaf node represents a predicted outcome. The tree selects features and thresholds that best split the data to minimize impurity using the Gini index or entropy. This step-by-step division was repeated until certain criteria are met, such as minimum node size or maximum depth. This was implemented using the “rpart” method for the “train” function. 
+
+The K-Nearest Neighbors (KNN) algorithm is a non-parametric method that predicts the class of a data point by identifying the 'k' closest points (neighbors) in the training data and assigning the most common class among them. The model was specified using the “knn” method in the “train” function in R. After transforming the categorical features into a numerical format through one-hot encoding, each mushroom was represented in a way that allowed the algorithm to compute distances between samples. KNN then classified each test mushroom based on the majority class of its nearest neighbors, with the optimal number of neighbors (k) selected through cross-validation. it is flexible and simple to implement but can be computationally intensive with large datasets and may suffer in high-dimensional spaces due to the curse of dimensionality.
+
+Lasso (Least Absolute Shrinkage and Selection Operator) is a linear regression technique that incorporates L1 regularisation, which penalises the absolute size of the regression coefficients. This penalty causes some coefficients to shrink to zero, effectively performing variable selection by excluding less important features from the model. As a result, Lasso is particularly useful when dealing with high-dimensional datasets where feature selection is essential. 
+
+eXtreme Gradient Boosting (XGBoost) is an advanced implementation of gradient boosting algorithms, designed for speed and performance. In XGBoost, models are built sequentially, where each new tree attempts to correct the residual errors made by the previous ensemble. It uses a regularized objective function that balances model complexity and training error, thereby enhancing generalization. The model was trained using the xgboost() function with 100 boosting rounds (nrounds = 100) and the logistic loss objective (binary:logistic) to predict the probability of a mushroom being poisonous. At each round, XGBoost added a new decision tree that focused on correcting the errors of the previous trees, guided by the gradient of the loss function. The use of the eval_metric = "auc" ensured the model prioritized distinguishing between classes effectively. This boosting approach allowed XGBoost to capture complex nonlinear patterns in the data, resulting in perfect classification performance on both the training and test sets.
+
+Random Forest is an ensemble learning method that builds a multitude of decision trees during training and outputs the mode for the mushroom poison status. It introduces randomness by training each tree on a bootstrapped sample of the data and considering only a random subset of features for each split. Using the train() function with 10-fold cross-validation, the model constructed 100 decision trees, each trained on a random bootstrap sample of the training data. At each split in a tree, a random subset of predictor variables was considered, promoting diversity among trees. The final prediction for whether a mushroom was poisonous or edible was determined by aggregating the predictions of all individual trees, typically using majority voting. This ensemble approach reduced variance and improved generalisation to new data . 
+
+The dataset was split into training (70\%), and test (30\%) sets. The models were evaluated using accuracy, AUC, sensitivity, specificity, F1-score, and the Brier score. The accuracy measures the overall correctness of the model's predictions by calculating the percentage of correctly classified mushrooms (both edible and poisonous) out of all predictions. Its values range from 0\% to 100\% or 0 to 1, and the higher the values, the better. The AUC (Area Under the ROC Curve) evaluates how well the model distinguishes between edible and poisonous mushrooms across all classification thresholds. An AUC of 0.5 suggests random guessing, while 1.0 indicates perfect separation. Sensitivity (Recall) measures the model's ability to correctly identify poisonous mushrooms (true positives). However, Specificity tracks the correct identification of edible mushrooms (true negatives). Both indicators have values from 0 to 1, and higher values imply better model performance. F1 Score combines both precision and recall into a balanced measure of a model's accuracy. It takes a harmonic mean of precision and recall but gives more weight to low values. It also has values from 0 to 1, with higher values implying better model performance. The Brier Score assesses probability calibration, with 0 showing predicted probabilities match actual outcomes perfectly, while the value of 1 implies otherwise. 
+
+
+# Results
+## Summary Statistics of Mushroom Attributes
+A total of 8,123 mushroom samples were used in the analysis. Of which more than half (51.8\%) were edible, and the rest were poisonous. The cap shapes were mainly convex (45.0\%) or flat (38.8\% ), and cap colors were brown (28.1\%) or gray (22.7\%), and gill sizes were mostly broad (69.1\%). About 97.5\% of the veils were white, and 92.6\% of mushrooms had one ring. Details of the distribution of the variables can be found in Table 2 .
+
+
+**Summary ditribution of each varaible in the data set again (This will be opened in a HTML file)**
+
+
+```{r , eval=FALSE, echo=FALSE, results='hide'}
+
+dfSummary(mushroom) %>% 
+  print(method = "browser", 
+        omit.headings = TRUE,
+        varnumbers = FALSE)
+```
+
+
+
+## Exploring correlation between the study variable using the cramer v correlation
+
+From the 1st column or bottom row of the heat map, it clearly showed that variables like spore print color, ring type, stalk surface below ring, stalk surface above ring, gill color, gill size, and bruises were highly correlated with the outcome (poisonous). The is also evidence of high correlation between the predictors as shown with the darker colours. This shows that some of the variables may be sharing similar information – Figure 1. 
+
+```{r, echo=FALSE}
+library(rstatix)
+library(vcd)
+library(sjmisc)
+library(reshape2)
+library(ggplot2)
+
+# Excluding "veil_type", "stalk_root", "odor" from the dataset because 
+# veil_type excluded because it had only one level
+# odor has perfect prediction
+# stalk_root excluded for having missing data of 30.5% 
+
+
+mushroom <- mushroom[ , !(names(mushroom) %in% c("veil_type", "stalk_root", "odor")) ]
+
+
+# Select only the categorical variables
+categorical_vars <- mushroom %>% dplyr::select(where(is.factor))
+
+# Function to compute Cramér's V between two categorical variables
+cramers_v_matrix <- function(df) {
+  var_names <- colnames(df)
+  n <- length(var_names)
+  mat <- matrix(NA, nrow = n, ncol = n)
+  colnames(mat) <- var_names
+  rownames(mat) <- var_names
+  
+  for (i in 1:n) {
+    for (j in 1:n) {
+      if (i == j) {
+        mat[i, j] <- 1
+      } else {
+        tbl <- table(df[[i]], df[[j]])
+        mat[i, j] <- assocstats(tbl)$cramer
+      }
+    }
+  }
+  return(as.data.frame(mat))
+}
+
+# Compute Cramér's V correlation matrix
+cramer_matrix <- cramers_v_matrix(categorical_vars)
+
+# Optional: round and view as heatmap
+#round(cramer_matrix, 2)
+
+
+# Melt matrix for ggplot
+melted_cramer <- reshape2::melt(as.matrix(cramer_matrix))
+
+ ggplot(melted_cramer, aes(Var1, Var2, fill = value)) +
+  geom_tile(color = "white") +
+  scale_fill_gradient2(low = "white", high = "darkred", mid = "orange", 
+                       midpoint = 0.3, limit = c(0, 1), space = "Lab", 
+                       name = "Cramér's V") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1)) +
+  coord_fixed()
+
+```
+
+
+
+**Spliting data into Training and test set*
+
+```{r}
+
+# Set seed for reproducibility
+set.seed(123)
+
+# Convert all variables to factors
+mushroom <- as.data.frame(lapply(mushroom, as.factor))
+
+# Spliting data into training (70%) and testing (30%) data
+train_index <- createDataPartition(mushroom$poisonous, p = 0.7, list = FALSE)
+train_data <- mushroom[train_index, ]
+test_data <- mushroom[-train_index, ]
+
+```
+
+
+
+## Performance Metrics for Machine Learning Models in Classifying Mushroom Edibility
+
+Table 3 shows the model performances for each of the seven models fitted in terms of accuracy, area under the curve (AUC), sensitivity, specificity, F1-score, and Brier score. The same attributes were used in fitting each of the models with the exception of the binary logistic regression model, which was run using only the top four attributes from the random forest.  
+Performance of Single Classifier Algorithms
+The k-nearest neighbors (KNN) model performed well with an accuracy of 99.9\% on both the training and test datasets. It also recorded an AUC of 1.00 and low Brier scores (\<0.001), which shows that the model was consistent and reliable in the classification. 
+The decision tree model showed comparatively lower performance. It recorded accuracy and AUC values of about 90\% in both training and test set data, with higher Brier scores of about 0.09 compared to other models. Only stock surface above ring and gill size were the only features selected for the decision tree (Figure 2 -Appendix) 
+Support vector machine (SVM) recorded perfect scores across all evaluation metrics on both training and testing datasets. The Brier score was approximately zero, showing that it was consistent and reliable in the classification of mushrooms into edible and poisonous. Thus, the SVM was able to fully separate the classes in the feature space. The model's performance was consistent in both the training and test sets. 
+With the top four predictors used in the Logistic regression models, the model achieved an accuracy of approximately 95% on both training and testing datasets, with high AUC values near 0.98 and high F1-scores. Although the Brier score was relatively high (<0.05) compared to other models, it still showed high probability prediction accuracy and confirms good calibration. This was the only model that the model performed consistently better on the test data than the training set across all performance matrices.
+
+
+## Performance of Ensemble Methods
+The ensemble models used in this analysis were Random Forest and XGBoost. Both models performed equally well as they showed perfect classification performance, with accuracy, sensitivity, specificity, AUC, and F1-score all equal to 100\% on both training and testing data. Again, the Brier scores were zero which shows that their predicted probabilities were well-calibrated. These results indicate that ensemble models are powerful for this type of classification problem. 
+
+
+
+
+```{r}
+# Decision Tree, K-Nearest Neighbors (KNN), Support Vector Machine, Lasso,   Random Forest, and eXtreme Gradient Boosting (XGBoost) with 10-fold cross-validation
+
+# Separating predictors and outcome
+train_x <- train_data %>% dplyr::select(-poisonous)
+test_x <- test_data %>% dplyr::select(-poisonous)
+train_y <- train_data$poisonous
+test_y <- test_data$poisonous
+
+# Ensure consistent factor levels before one-hot encoding
+for (col in names(train_x)) {
+  levels(test_x[[col]]) <- levels(train_x[[col]])
+}
+
+# One-hot encode
+train_x_mat <- model.matrix(~ . - 1, data = train_x)
+test_x_mat <- model.matrix(~ . - 1, data = test_x)
+
+# Fix column mismatch
+missing_cols <- setdiff(colnames(train_x_mat), colnames(test_x_mat))
+for (col in missing_cols) {
+  test_x_mat <- cbind(test_x_mat, setNames(data.frame(0), col))
+}
+test_x_mat <- test_x_mat[, colnames(train_x_mat)]
+
+# CV setup
+cv_ctrl <- trainControl(
+  method = "cv", number = 10,
+  classProbs = TRUE, summaryFunction = twoClassSummary,
+  savePredictions = "final"
+)
+
+# Train models
+models <- list()
+
+
+
+# KNN
+models$knn <- train(
+  poisonous ~ ., data = train_data,
+  method = "knn",
+  tuneLength = 10,
+  trControl = cv_ctrl, metric = "ROC"
+)
+
+# Decision Tree
+models$tree <- train(
+  poisonous ~ ., data = train_data,
+  method = "rpart",
+  trControl = cv_ctrl, metric = "ROC"
+)
+
+# Random Forest
+models$rf <- train(
+  poisonous ~ ., data = train_data,
+  method = "rf",
+  ntree = 100,
+  trControl = cv_ctrl, metric = "ROC"
+)
+
+# SVM
+models$svm <- train(
+  poisonous ~ ., data = train_data,
+  method = "svmRadial",
+  tuneLength = 5,
+  trControl = cv_ctrl, metric = "ROC"
+)
+
+
+
+# XGBoost - ensure factor levels are consistent
+train_y_num <- as.numeric(train_y) - 1
+test_y_num <- as.numeric(test_y) - 1
+train_x_xgb <- xgb.DMatrix(data = train_x_mat, label = train_y_num)
+test_x_xgb <- xgb.DMatrix(data = test_x_mat, label = test_y_num)
+xgb_model <- xgboost(data = train_x_xgb, objective = "binary:logistic",
+                     nrounds = 100, eval_metric = "auc", verbose = 0)
+
+
+
+# Function to calculate F1 score
+calculate_f1 <- function(conf_matrix) {
+  precision <- conf_matrix$byClass["Pos Pred Value"]
+  recall <- conf_matrix$byClass["Sensitivity"]
+  2 * (precision * recall) / (precision + recall)
+}
+
+# Function to calculate Brier score
+calculate_brier <- function(true_y, pred_prob) {
+  true_numeric <- as.numeric(true_y) - 1  # Convert to 0/1
+  mean((true_numeric - pred_prob)^2)
+}
+
+# Enhanced evaluation function
+get_metrics <- function(model, newdata, true_y, model_type = "other") {
+  if (model_type == "glmnet") {
+    newx <- if (identical(dim(newdata), dim(train_data))) train_x_mat else test_x_mat
+    pred_prob <- predict(model, newx = newx, type = "prob")[, "poisonous"]
+    pred_class <- predict(model, newx = newx, type = "raw")
+  } else {
+    pred_prob <- predict(model, newdata = newdata, type = "prob")[, "poisonous"]
+    pred_class <- predict(model, newdata = newdata)
+  }
+  
+  # Ensure factor levels match
+  pred_class <- factor(pred_class, levels = levels(true_y))
+  
+  roc_obj <- roc(response = true_y, predictor = pred_prob)
+  cm <- confusionMatrix(pred_class, true_y, positive = "poisonous")
+  
+  data.frame(
+    Accuracy = cm$overall["Accuracy"],
+    AUC = auc(roc_obj),
+    Sensitivity = cm$byClass["Sensitivity"],
+    Specificity = cm$byClass["Specificity"],
+    F1 = calculate_f1(cm),
+    Brier = calculate_brier(true_y, pred_prob)
+  )
+}
+
+# Get performance metrics with new measures
+performance <- lapply(names(models), function(name) {
+  model <- models[[name]]
+  model_type <- if (inherits(model$finalModel, "glmnet")) "glmnet" else "other"
+  
+  tryCatch({
+    # Train metrics
+    if (model_type == "glmnet") {
+      train_prob <- predict(model, newx = train_x_mat, type = "prob")[, "poisonous"]
+      train_class <- predict(model, newx = train_x_mat, type = "raw")
+    } else {
+      train_prob <- predict(model, newdata = train_data, type = "prob")[, "poisonous"]
+      train_class <- predict(model, newdata = train_data)
+    }
+    train_class <- factor(train_class, levels = levels(train_y))
+    train_cm <- confusionMatrix(train_class, train_y, positive = "poisonous")
+    
+    # Test metrics
+    if (model_type == "glmnet") {
+      test_prob <- predict(model, newx = test_x_mat, type = "prob")[, "poisonous"]
+      test_class <- predict(model, newx = test_x_mat, type = "raw")
+    } else {
+      test_prob <- predict(model, newdata = test_data, type = "prob")[, "poisonous"]
+      test_class <- predict(model, newdata = test_data)
+    }
+    test_class <- factor(test_class, levels = levels(test_y))
+    test_cm <- confusionMatrix(test_class, test_y, positive = "poisonous")
+    
+    # Create data frames with new metrics
+    rbind(
+      data.frame(Model = name, Data = "Train",
+                Accuracy = train_cm$overall["Accuracy"],
+                AUC = as.numeric(auc(roc(response = train_y, predictor = train_prob))),
+                Sensitivity = train_cm$byClass["Sensitivity"],
+                Specificity = train_cm$byClass["Specificity"],
+                F1 = calculate_f1(train_cm),
+                Brier = calculate_brier(train_y, train_prob)),
+      data.frame(Model = name, Data = "Test",
+                Accuracy = test_cm$overall["Accuracy"],
+                AUC = as.numeric(auc(roc(response = test_y, predictor = test_prob))),
+                Sensitivity = test_cm$byClass["Sensitivity"],
+                Specificity = test_cm$byClass["Specificity"],
+                F1 = calculate_f1(test_cm),
+                Brier = calculate_brier(test_y, test_prob))
+    )
+  }, error = function(e) {
+    message("Error evaluating ", name, ": ", e$message)
+    NULL
+  })
+}) %>% bind_rows()
+
+# Handle XGBoost separately with new metrics
+xgb_train_pred <- predict(xgb_model, train_x_xgb)
+xgb_test_pred <- predict(xgb_model, test_x_xgb)
+
+xgb_train_class <- factor(ifelse(xgb_train_pred > 0.5, "poisonous", "edible"),
+                         levels = levels(train_y))
+xgb_test_class <- factor(ifelse(xgb_test_pred > 0.5, "poisonous", "edible"),
+                        levels = levels(test_y))
+
+xgb_cm_train <- confusionMatrix(xgb_train_class, train_y, positive = "poisonous")
+xgb_cm_test <- confusionMatrix(xgb_test_class, test_y, positive = "poisonous")
+
+xgb_perf <- rbind(
+  data.frame(Model = "xgboost", Data = "Train",
+             Accuracy = xgb_cm_train$overall["Accuracy"],
+             AUC = as.numeric(auc(roc(response = as.numeric(train_y) - 1, 
+                                   predictor = xgb_train_pred))),
+             Sensitivity = xgb_cm_train$byClass["Sensitivity"],
+             Specificity = xgb_cm_train$byClass["Specificity"],
+             F1 = calculate_f1(xgb_cm_train),
+             Brier = calculate_brier(train_y, xgb_train_pred)),
+  data.frame(Model = "xgboost", Data = "Test",
+             Accuracy = xgb_cm_test$overall["Accuracy"],
+             AUC = as.numeric(auc(roc(response = as.numeric(test_y) - 1, 
+                                   predictor = xgb_test_pred))),
+             Sensitivity = xgb_cm_test$byClass["Sensitivity"],
+             Specificity = xgb_cm_test$byClass["Specificity"],
+             F1 = calculate_f1(xgb_cm_test),
+             Brier = calculate_brier(test_y, xgb_test_pred))
+)
+
+performance <- bind_rows(performance, xgb_perf)
+
+# Print the comprehensive performance metrics
+print(performance)
+
+
+
+
+
+
+# ========== Visualizations ==========
+
+# ROC curve function - fixed prediction extraction
+plot_roc_curve <- function(model, test_x, test_y, model_name, model_type = "other") {
+  if (model_type == "glmnet") {
+    prob <- predict(model, newx = test_x_mat, type = "prob")[, "poisonous"]
+  } else {
+    prob <- predict(model, newdata = test_x, type = "prob")[, "poisonous"]
+  }
+  roc_obj <- roc(test_y, prob)
+  plot(roc_obj, main = paste("ROC Curve -", model_name), col = "#E76F51", lwd = 2)
+  auc_text <- paste0("AUC = ", round(auc(roc_obj), 3))
+  legend("bottomright", legend = auc_text, col = "#E76F51", lwd = 2)
+}
+
+# Confusion matrix function - fixed prediction
+plot_confusion_matrix <- function(model, test_x, test_y, model_name, model_type = "other") {
+  pred <- if (model_type == "glmnet") {
+    predict(model, newx = test_x_mat, type = "raw")
+  } else {
+    predict(model, newdata = test_x)
+  }
+  pred <- factor(pred, levels = levels(test_y))
+  cm <- confusionMatrix(pred, test_y)
+  df <- as.data.frame(cm$table)
+  ggplot(df, aes(Prediction, Reference, fill = Freq)) +
+    geom_tile() + geom_text(aes(label = Freq), size = 5) +
+    scale_fill_gradient(low = "white", high = "#2A9D8F") +
+    ggtitle(paste("Confusion Matrix -", model_name)) +
+    theme_minimal()
+}
+
+# Plot ROC curves
+# Corrected ROC curve plotting function
+plot_roc_curve <- function(model, test_data, test_y, model_name, model_type = "other") {
+  tryCatch({
+    # Get predictions based on model type
+    if (model_type == "glmnet") {
+      prob <- predict(model, newx = test_x_mat, type = "prob")[, "poisonous"]
+    } else {
+      prob <- predict(model, newdata = test_data, type = "prob")[, "poisonous"]
+    }
+    
+    # Verify lengths match
+    if (length(test_y) != length(prob)) {
+      stop(paste("Length mismatch in", model_name, 
+                "- Test Y:", length(test_y), 
+                "Predictions:", length(prob)))
+    }
+    
+    # Create ROC curve
+    roc_obj <- roc(response = test_y, predictor = prob)
+    plot(roc_obj, main = paste("ROC Curve -", model_name), col = "#E76F51", lwd = 2)
+    auc_text <- paste0("AUC = ", round(auc(roc_obj), 3))
+    legend("bottomright", legend = auc_text, col = "#E76F51", lwd = 2)
+  }, error = function(e) {
+    message("Error plotting ROC for ", model_name, ": ", e$message)
+    plot(1, type = "n", main = paste("Error -", model_name))
+    text(1, 1, paste("Error:", e$message), col = "red")
+  })
+}
+
+# Plot ROC curves with error handling
+par(mfrow = c(2, 4))
+for (name in names(models)) {
+  type <- if (inherits(models[[name]]$finalModel, "glmnet")) "glmnet" else "other"
+  
+  # Debug output
+  cat("Plotting", name, "- Model type:", type, "\n")
+  
+  plot_roc_curve(models[[name]], test_data, test_y, name, type)
+}
+
+# XGBoost ROC curve (separate handling)
+try({
+  xgb_test_pred <- predict(xgb_model, test_x_xgb)
+  xgb_roc <- roc(response = as.numeric(test_y) - 1, predictor = xgb_test_pred)
+  plot(xgb_roc, main = "ROC Curve - xgboost", col = "#F4A261", lwd = 2)
+  legend("bottomright", legend = paste("AUC =", round(auc(xgb_roc), 3)), 
+         col = "#F4A261", lwd = 2)
+})
+
+par(mfrow = c(1, 1))
+
+
+
+# Decision Tree visualization
+rpart.plot(models$tree$finalModel, main = "Decision Tree")
+
+# Random Forest - Variable Importance
+plot(varImp(models$rf), top = 20, main = "Top 20 Important Variables - Random Forest")
+
+
+
+
+```
+
+
+
+```{r}
+## Visualize the comparison of metrics
+
+
+# Prepare data for visualization
+perf_long <- performance %>%
+  filter(Data == "Test") %>%  # Focus on test performance
+  select(Model, Accuracy, AUC, F1, Brier) %>%
+  pivot_longer(cols = -Model, names_to = "Metric", values_to = "Value")
+
+# Create comparison plot
+ggplot(perf_long, aes(x = Model, y = Value, fill = Model)) +
+  geom_bar(stat = "identity") +
+  facet_wrap(~Metric, scales = "free_y") +
+  labs(title = "Model Performance Comparison (Test Set)",
+       y = "Metric Value", x = "") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        legend.position = "none")
+
+# Create detailed table with all metrics
+kable(performance, digits = 3, caption = "Comprehensive Model Evaluation Metrics")
+```
+
+
+
+
+*** FITTING LOGISTIC REGRESSION MODEL WITH THE TOP FOUR  IMPORTANT VARIABLES FROM THE RANDOM FOREST
+
+
+```{r}
+
+# Define formula
+formula <- as.formula("poisonous ~ gill_size + stalk_surf_above_ring + stalk_surf_below_ring + spore_print_color")
+
+# Define training control with 10-fold cross-validation
+train_control <- trainControl(
+  method = "cv",
+  number = 10,
+  savePredictions = "final",
+  classProbs = TRUE,
+  summaryFunction = twoClassSummary
+)
+
+# Train logistic regression model
+logit_model <- train(
+  formula,
+  data = train_data,
+  method = "glm",
+  family = "binomial",
+  trControl = train_control,
+  metric = "ROC"
+)
+
+## --- TRAINING DATA EVALUATION ---
+train_pred <- predict(logit_model, newdata = train_data)
+train_prob <- predict(logit_model, newdata = train_data, type = "prob")[, "poisonous"]
+train_conf <- confusionMatrix(train_pred, train_data$poisonous, positive = "poisonous")
+train_roc <- roc(response = train_data$poisonous, predictor = train_prob)
+train_f1 <- F1_Score(y_pred = train_pred, y_true = train_data$poisonous, positive = "poisonous")
+train_true_numeric <- ifelse(train_data$poisonous == "poisonous", 1, 0)
+train_brier <- mean((train_prob - train_true_numeric)^2)
+
+## --- TESTING DATA EVALUATION ---
+test_pred <- predict(logit_model, newdata = test_data)
+test_prob <- predict(logit_model, newdata = test_data, type = "prob")[, "poisonous"]
+test_conf <- confusionMatrix(test_pred, test_data$poisonous, positive = "poisonous")
+test_roc <- roc(response = test_data$poisonous, predictor = test_prob)
+test_f1 <- F1_Score(y_pred = test_pred, y_true = test_data$poisonous, positive = "poisonous")
+test_true_numeric <- ifelse(test_data$poisonous == "poisonous", 1, 0)
+test_brier <- mean((test_prob - test_true_numeric)^2)
+
+# --- OUTPUT ---
+cat("=== Logistic Regression Results ===\n")
+print(logit_model)
+
+cat("\n--- Training Performance ---\n")
+print(train_conf)
+cat("AUC:", as.numeric(train_roc$auc), "\n")
+cat("F1 Score:", train_f1, "\n")
+cat("Brier Score:", train_brier, "\n")
+
+cat("\n--- Testing Performance ---\n")
+print(test_conf)
+cat("AUC:", as.numeric(test_roc$auc), "\n")
+cat("F1 Score:", test_f1, "\n")
+cat("Brier Score:", test_brier, "\n")
+
+
+```
+
+#Performance of Regularisation Methods
+
+Before settling on the Lasso model, 11 different elastic net models with different values of alpha (ranging from 0 to 1). When alpha = 0, the model behaves like Ridge regression, where no coefficients are exactly zero. As alpha increases, Lasso's effect becomes stronger, and more coefficients are shrunk to zero, and at alpha = 1, the model selects a sparse set of variables that contribute most to the prediction. The final selected model was a Lasso (logistic regression with Lasso regularisation) model with 49 non-zero coefficients and a tuning parameter (Lambda) of 5.714e-05 (Figures 3 ). Figure 4  shows the top 20 most selected influential features. Features related to ring type, gill size, cap color, and population structure were among the most influential for identifying poisonous mushrooms.  The model explains 92.9\% of the deviance in the data. The lasso model outperformed standard logistic regression with training and testing accuracy of about 99\% and an AUC close to 1.0. Also, it had a lower Brier score than standard logistic regression, but this should not be of concern since the standard logistic model used only selected variables from the random forest. 
+
+
+```{r}
+
+## Regularisation Regression models Ridge, Lasso and Elastic Net models with varying alpha parameter
+# Alpha = 0 for Ridge model
+# Alpha = 1 for Lasso
+# Elastic net combines L1 (lasso) and L2 (ridge) regularization.
+
+# Make sure target variable is a factor with correct labels
+train_data$poisonous <- factor(train_data$poisonous, levels = c("edible", "poisonous"))
+test_data$poisonous  <- factor(test_data$poisonous, levels = c("edible", "poisonous"))
+
+# Convert to model matrix (drop intercept column)
+train_x <- model.matrix(poisonous ~ ., data = train_data)[, -1]
+test_x  <- model.matrix(poisonous ~ ., data = test_data)[, -1]
+
+# Convert target to numeric 0/1
+train_y <- as.numeric(train_data$poisonous) - 1
+test_y  <- as.numeric(test_data$poisonous) - 1
+
+# Set alpha grid
+alpha_values <- seq(0, 1, by = 0.1)
+results <- list()
+
+# Cross-validation for each alpha
+for (alpha in alpha_values) {
+  set.seed(123)
+  cv_fit <- cv.glmnet(
+    x = train_x,
+    y = train_y,
+    alpha = alpha,
+    family = "binomial",
+    type.measure = "auc",
+    nfolds = 10
+  )
+  results[[as.character(alpha)]] <- cv_fit
+}
+
+# Find best alpha and lambda
+best_auc <- -Inf
+for (alpha in alpha_values) {
+  cv_fit <- results[[as.character(alpha)]]
+  if (max(cv_fit$cvm) > best_auc) {
+    best_auc <- max(cv_fit$cvm)
+    best_alpha <- alpha
+    best_lambda <- cv_fit$lambda[which.max(cv_fit$cvm)]
+  }
+}
+
+# Fit final model
+final_model <- glmnet(
+  x = train_x,
+  y = train_y,
+  alpha = best_alpha,
+  lambda = best_lambda,
+  family = "binomial"
+)
+
+
+##yardstick and tidymodels were not working properly on my laptop so I used 
+#Manual computation of the evalaution matrices
+# --------------------------
+# Function to compute metrics
+# --------------------------
+evaluate_model <- function(model, x, y_true, lambda = NULL) {
+  probs <- predict(model, newx = x, type = "response", s = lambda)[, 1]
+  preds <- ifelse(probs > 0.5, 1, 0)
+  
+  # Confusion matrix
+  cm <- table(Predicted = preds, Actual = y_true)
+  tp <- cm["1", "1"]
+  tn <- cm["0", "0"]
+  fp <- cm["1", "0"]
+  fn <- cm["0", "1"]
+  
+  accuracy <- (tp + tn) / sum(cm)
+  sensitivity <- tp / (tp + fn)
+  specificity <- tn / (tn + fp)
+  precision <- tp / (tp + fp)
+  f1_score <- 2 * precision * sensitivity / (precision + sensitivity)
+  auc_val <- auc(roc(y_true, probs))
+  brier <- mean((probs - y_true)^2)
+  
+  data.frame(
+    Accuracy = round(accuracy, 4),
+    AUC = round(auc_val, 4),
+    Sensitivity = round(sensitivity, 4),
+    Specificity = round(specificity, 4),
+    F1 = round(f1_score, 4),
+    Brier = round(brier, 4)
+  )
+}
+
+# Print results
+cat("\nElastic Net Results:\n")
+cat("Optimal alpha:", best_alpha, "(0 = ridge, 1 = lasso)\n")
+cat("Optimal lambda:", best_lambda, "\n")
+
+
+# Evaluate train and test
+train_metrics <- evaluate_model(final_model, train_x, train_y, lambda = best_lambda)
+test_metrics  <- evaluate_model(final_model, test_x, test_y, lambda = best_lambda)
+
+train_metrics$Set <- "Train"
+test_metrics$Set <- "Test"
+
+# Combine results
+final_metrics <- rbind(train_metrics, test_metrics)
+
+# Show results
+print(final_metrics)
+
+# Plot ROC curve
+plot(roc(test_y, predict(final_model, newx = test_x, type = "response")[, 1]),
+     main = "ROC Curve - Test Set", col = "blue", lwd = 2)
+
+
+# Plot coefficient paths for all alphas
+par(mfrow = c(3, 4))
+for (alpha in alpha_values) {
+  fit <- glmnet(train_x, train_y, alpha = alpha, family = "binomial")
+  plot(fit, main = paste("Alpha =", alpha), xvar = "lambda")
+  abline(v = log(best_lambda), col = "red", lty = 2)
+}
+par(mfrow = c(1, 1))
+
+# Plot best model coefficients
+plot(final_model, xvar = "lambda", main = paste("Best Model (Alpha =", best_alpha, ")"))
+abline(v = log(best_lambda), col = "red", lty = 2)
+
+# Variable importance
+coefs <- coef(final_model, s = best_lambda)
+important_vars <- data.frame(
+  variable = rownames(coefs)[-1],  # Remove intercept
+  coefficient = as.numeric(coefs[-1])
+)
+important_vars <- important_vars[order(-abs(important_vars$coefficient)), ]
+
+# Plot top 20 variables
+library(ggplot2)
+ggplot(important_vars[1:20, ], aes(x = reorder(variable, coefficient), y = coefficient)) +
+  geom_bar(stat = "identity") +
+  coord_flip() +
+  labs(title = "Top 20 Important Variables Lasso (Alpha = 1)", 
+       x = "Variable",
+       y = "Coefficient") +
+  theme_minimal()
+```
+
+
+# Discussion
+This aim of this study was to develop a machine learning model to classify mushrooms as edible or poisonous based on observable physical characteristics using different machine learning models and compare their performances to reduce the risk of accidental poisoning. The data set had 8,123 mushrooms, with more than half of them (51.8\%) being edible and the rest (48.2\%) being poisonous. The Cramer-V’s correlation showed that there was a high correlation between the predictors themselves and the outcome variable (poisonous). Thus, some variables may contain the same information. The stalk surface, gill size, ring type, and spore print color were strongly predictive of whether a mushroom was poisonous. 
+When comparing model performance, although all the models performed very well in predicting the outcome, the ensemble methods (Random Forests and XGBoost ) outperformed all the other models as they achieved perfect accuracy, correctly classifying every mushroom in both training and test datasets. Even a simpler logistic regression model, using only the top four most important features, achieved 95\% accuracy, showing that a more interpretable model could still perform well. The only model that struggled slightly was the Decision Tree, which had about 90\% accuracy. This finding is similar to other studies that have used the same data or similar work on mushrooms, as they all reported very high model performances. This may be because it could not capture more complex patterns in the data.
+These results have practical implications, especially for public health. For example, knowing that features like stalk surface, gill size, and ring type are strong predictors of toxicity could help foragers or healthcare workers quickly identify dangerous mushrooms. The high accuracy of models like random forest and XGBoost suggests they could be used in apps or tools to assist with mushroom identification in real-world settings. 
+
+# Limitation
+The dataset may not fully represent all types of mushrooms found in different regions, as it dataset primarily represents North American species, so the models might not perform as well on unseen varieties. Additionally, while the models showed near-perfect accuracy on both the training and test data, it eliminates the issue of overfitting, but based on the strong correlation between some of the predictors and the outcome variable (poisonous), there could be a possibility of information leakage. Future work could test these models on additional datasets from different geographic locations to confirm their reliability.
+
+# Conclusion
+In conclusion, the results strongly support the idea that machine learning can effectively classify mushrooms as edible or poisonous. The best-performing models achieved near-perfect accuracy, while simpler models still provided useful insights. These findings could have important applications in safety and education, though further testing and refinement are needed to ensure they work reliably in diverse settings
+
+# Data Availability
+
+All codes and datasets for this project can be found at my GitHub Repository (https://github.com/soothe-one/MLPH_Finals/tree/main)
+
+
+# References
+Beniwal, S., Arora, J., & Kumar, N. (2015). Performance analysis of machine learning algorithms for mushroom classification. International Journal of Computer Applications, 130(11), 1-6. 
+
+
+Diaz, J. H. (2005). Evolving global epidemiology, syndromic classification, general management, and prevention of unknown mushroom poisonings. Critical Care Medicine, 33(2), 419-426. 
+
+
+Ismail, S., Zainal, A. R., & Mustapha, A. (2018). Behavioral features for mushroom classification. 2018 IEEE Symposium on Computer Applications & Industrial Electronics (ISCAIE), 412–415.
+
+
+Lavanya, K., & Rani, K. U. (2017). Performance evaluation of decision tree algorithms on mushroom dataset. International Journal of Engineering & Technology, 6(3), 137-140. 
+
+
+Li, H., Zhang, H., Zhang, Y., Zhang, K., Zhou, J., Yin, Y., Jiang, S., Ma, P., He, Q., & Zhang, Y. (2020). Mushroom poisoning outbreaks-China, 2019. China CDC Weekly, 2(2), 19-27. 
+
+
+Pinky, N. J., Islam, S. M. M., & Alice, R. S. (2019). Edibility detection of mushroom using ensemble methods. International Journal of Image, Graphics and Signal Processing, 11(4), 55-62. 
+
+
+White, J., Weinstein, S. A., De Haro, L., Bédry, R., Schaper, A., Rumack, B. H., & Zilker, T. (2019). Mushroom poisoning: A proposed new clinical classification. Toxicon, 157, 53-65. 
+
+
+Wibowo, A., Rahayu, Y., Riyanto, A., & Hidayatulloh, T. (2018). Classification algorithm for edible mushroom identification. 2018 International Conference on Information and Communications Technology (ICOIACT), 250–253.
+
+
+Zhou, J., Yuan, Y., Lang, N., Yin, Y., & Sun, C. (2016). Analysis of hazard in mushroom poisoning incidents in China mainland. Chinese Journal of Emergency Medicine, 25(8), 724-728.
+
+

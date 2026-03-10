@@ -24,6 +24,7 @@ library(vcd)
 library(sjmisc)
 library(reshape2)
 library(ggplot2)
+library(summarytools)
 
 ```
 
@@ -137,112 +138,48 @@ mushroom <- mushroom %>%
   mutate(across(where(is.character), as.factor))
 mushroom <- data.frame(mushroom)
 
-## Exploring data structure and summaries
+## Exploring data structure
 str(mushroom)
-summary(mushroom)
 
 
 
    
 ```
 
-### Checking the data distribution and combining group low numbers
+
+
+### Summary ditribution of each varaible in the data set (This will be opened in a HTML file)
+
+
+```{r eval=FALSE}
+
+dfSummary(mushroom) %>% 
+  print(method = "browser", 
+        omit.headings = TRUE,
+        varnumbers = FALSE)
+```
+
+
+### Checking the data distribution by outcome variable
 
 ```{r}
 
-## Cross tabulation of all predictors and outcome
+## Cross tabulation of all predictors and outcome(poisonous)
 
-# Loop through all variables except 'poisonous' to create two-way tables
 for (var in names(mushroom)[names(mushroom) != "poisonous"]) {
   cat("\n--- Two-way table: poisonous vs", var, "---\n")
   print(table(mushroom$poisonous, mushroom[[var]]))
 }
+```
+
+
+
 
 
 # Combining categories with no/very low observations into similar categories
-mushroom <- mushroom %>%
-  mutate(
-    # cap_shape: merge "conical" and "sunken" into "other"
-    cap_shape = fct_collapse(cap_shape,
-                              other = c("conical
-                                        ", "sunken")),
-
-    # cap_surface: merge "grooves" into "fibrous"
-    cap_surface = fct_collapse(cap_surface,
-                                fibrous = c("fibrous", "grooves")),
-
-    # cap_color: merge "green" and "purple" into "other"
-    cap_color = fct_collapse(cap_color,
-                              other = c("green", "purple", "cinnamon")),
-
-    # odor: combine rare edible odors into "edible_odor", and toxic into "toxic_odor"
-    odor = fct_recode(odor,
-                      edible_odor = "almond",
-                      edible_odor = "anise",
-                      none = "none",
-                      toxic_odor = "creosote",
-                      toxic_odor = "fishy",
-                      toxic_odor = "foul",
-                      toxic_odor = "musty",
-                      toxic_odor = "pungent",
-                      toxic_odor = "spicy"),
-
-    # gill_color: combine "buff", "green", "orange", "red", "yellow" into "other"
-    gill_color = fct_collapse(gill_color,
-                              other = c("buff", "green", "orange", "red", "yellow")),
-
-    # stalk_surf_above_ring: combine "scaly" into "fibrous" (since it's small)
-    stalk_surf_above_ring = fct_collapse(stalk_surf_above_ring,
-                                         fibrous = c("fibrous", "scaly")),
-
-    # stalk_surf_below_ring: same approach
-    stalk_surf_below_ring = fct_collapse(stalk_surf_below_ring,
-                                         fibrous = c("fibrous", "scaly")),
-
-    # stalk_color_above_ring: merge "buff", "cinnamon", "gray", "orange", "red", "yellow" into "other"
-    stalk_color_above_ring = fct_collapse(stalk_color_above_ring,
-                                          other = c("buff", "cinnamon", "gray", "orange", "red", "yellow")),
-
-    # stalk_color_below_ring: same as above
-    stalk_color_below_ring = fct_collapse(stalk_color_below_ring,
-                                          other = c("buff", "cinnamon", "gray", "orange", "red", "yellow")),
-
-    # veil_color: merge "orange" and "yellow" into "brown"
-    veil_color = fct_collapse(veil_color,
-                              brown = c("brown", "orange", "yellow")),
-
-    # ring_number: combine "none" into "one" (based on most similar)
-    ring_number = fct_collapse(ring_number,
-                               one = c("none", "one")),
-
-    # ring_type: merge "none" and "flaring" into "evanescent" (since "none" is rare)
-    ring_type = fct_collapse(ring_type,
-                             evanescent = c("evanescent", "none", "flaring")),
-
-    # spore_print_color: combine "buff", "green", "orange", "purple", "yellow" into "other"
-    spore_print_color = fct_collapse(spore_print_color,
-                                     other = c("buff", "green", "orange", "purple", "yellow")),
-
-    # population: combine "abundant", "clustered", "numerous", "scattered" into "common"
-    population = fct_collapse(population,
-                              common = c("abundant", "clustered", "numerous", "scattered")),
-
-    # habitat: merge "waste" into "urban"
-    habitat = fct_collapse(habitat,
-                           urban = c("urban", "waste"))
-  )
-
-# Loop through all variables except 'poisonous' to create two-way tables
-for (var in names(mushroom)[names(mushroom) != "poisonous"]) {
-  cat("\n--- Two-way table: poisonous vs", var, "---\n")
-  print(table(mushroom$poisonous, mushroom[[var]]))
-}
-
-```
 
 ```{r}
-library(dplyr)
-library(forcats)
+
 
 mushroom <- mushroom %>%
   mutate(
@@ -314,44 +251,51 @@ mushroom <- mushroom %>%
     habitat = fct_collapse(habitat,
                            urban = c("urban", "waste"))
   )
+```
+
+
+### Checking the distribution of the predictors by the outcome again
+
+```{r}
 
 # Loop through all variables except 'poisonous' to create two-way tables
 for (var in names(mushroom)[names(mushroom) != "poisonous"]) {
   cat("\n--- Two-way table: poisonous vs", var, "---\n")
   print(table(mushroom$poisonous, mushroom[[var]]))
 }
+
 ```
 
-```{r eval=FALSE}
-library(summarytools)
 
-# Overall Comprehensive summary using summarytools
+### Summary ditribution of each varaible in the data set again (This will be opened in a HTML file)
+
+
+```{r eval=FALSE}
+
 dfSummary(mushroom) %>% 
   print(method = "browser", 
         omit.headings = TRUE,
         varnumbers = FALSE)
 ```
 
-```{r, echo=FALSE, out.width="100%", out.height=="100%"}
-knitr::include_graphics("fig1.png")
-```
+
 
 ### Exploring correlation between the study variable using the cramer v correlation
 
 ```{r}
-
-mushroom <- mushroom[ , !(names(mushroom) %in% c("veil_type", "stalk_root", "odor")) ]
-
-
-# + veil_type excluded because it had only one level
-# odor has perfect prediction
-# stalk_root excluded for missing obs
-
-
 library(rstatix)
 library(vcd)
 library(sjmisc)
 library(reshape2)
+library(ggplot2)
+
+# Excluding "veil_type", "stalk_root", "odor" from the dataset because 
+# veil_type excluded because it had only one level
+# odor has perfect prediction
+# stalk_root excluded for having missing data of 30.5% 
+
+
+mushroom <- mushroom[ , !(names(mushroom) %in% c("veil_type", "stalk_root", "odor")) ]
 
 
 # Select only the categorical variables
@@ -384,7 +328,6 @@ cramer_matrix <- cramers_v_matrix(categorical_vars)
 # Optional: round and view as heatmap
 round(cramer_matrix, 2)
 
-library(ggplot2)
 
 # Melt matrix for ggplot
 melted_cramer <- reshape2::melt(as.matrix(cramer_matrix))
@@ -398,9 +341,12 @@ melted_cramer <- reshape2::melt(as.matrix(cramer_matrix))
   theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1)) +
   coord_fixed()
 
-
-
 ```
+
+
+
+
+
 
 ```{r}
 
@@ -409,13 +355,17 @@ melted_cramer <- reshape2::melt(as.matrix(cramer_matrix))
 # Set up tuning grid for alpha (mixing parameter)
 alpha_values <- seq(0, 1, by = 0.1)  # Range from pure ridge to pure lasso
 
-train_data$poisonous <- train_data$poisonous
-# First convert factors to numeric dummy variables using model.matrix
-x_train <- model.matrix(poisonous~ ., data = train_data)[,- 1]
-y_train <- as.numeric(train_data$poisonous)  # Convert to numeric 0/1
 
-x_test <- model.matrix(poisonous~ ., data = test_data)[,- 1]
-y_test <- as.numeric(test_data$poisonous)  # Convert to numeric 0/1
+
+# First convert factors to numeric dummy variables using model.matrix
+train_x <- model.matrix(poisonous~ ., data = train_data)[,- 1]
+train_y <- as.numeric(train_data$poisonous)  # Convert to numeric 0/1
+
+test_x <- model.matrix(poisonous~ ., data = test_data)[,- 1]
+test_y <- as.numeric(test_data$poisonous)  # Convert to numeric 0/1
+
+
+
 
 # Create empty list to store results
 results <- list()
@@ -424,8 +374,8 @@ results <- list()
 for (alpha in alpha_values) {
   set.seed(123)
   cv_fit <- cv.glmnet(
-    x = x_train,
-    y = as.factor(y_train),
+    x = train_x,
+    y = as.factor(train_y),
     alpha = alpha,
     family = "binomial",
     type.measure = "auc",
@@ -454,15 +404,15 @@ for (alpha in alpha_values) {
 
 # Fit final model with best parameters
 final_model <- glmnet(
-  x = x_train,
-  y = y_train,
+  x = train_x,
+  y = train_y,
   alpha = best_alpha,
   family = "binomial",
   lambda = best_lambda
 )
 
 # Make predictions
-en_pred <- predict(final_model, newx = x_test, type = "response", s = best_lambda)
+en_pred <- predict(final_model, newx = test_x, type = "response", s = best_lambda)
 en_class <- ifelse(en_pred > 0.5, "poisonous", "edible")
 
 # Evaluate performance
@@ -480,7 +430,7 @@ cat("Optimal lambda:", best_lambda, "\n")
 # Plot coefficient paths for all alphas
 par(mfrow = c(3, 4))
 for (alpha in alpha_values) {
-  fit <- glmnet(x_train, y_train, alpha = alpha, family = "binomial")
+  fit <- glmnet(train_x, train_y, alpha = alpha, family = "binomial")
   plot(fit, main = paste("Alpha =", alpha), xvar = "lambda")
   abline(v = log(best_lambda), col = "red", lty = 2)
 }
@@ -503,12 +453,136 @@ library(ggplot2)
 ggplot(important_vars[1:20, ], aes(x = reorder(variable, coefficient), y = coefficient)) +
   geom_bar(stat = "identity") +
   coord_flip() +
-  labs(title = "Top 20 Important Variables", 
+  labs(title = "Top 20 Important Variables Lasso (Alpha = 1)", 
        x = "Variable",
        y = "Coefficient") +
   theme_minimal()
 
 ```
+```{r}
+
+# Required libraries
+library(glmnet)
+library(dplyr)
+library(pROC)
+library(ggplot2)
+#library(yardstick)
+library(tibble)
+library(tidyr)
+
+# Convert data if necessary
+train_x <- model.matrix(poisonous ~ ., data = train_data)[, -1]
+train_y <- factor(train_data$poisonous, levels = c("poisonous", "edible"))
+
+test_x <- model.matrix(poisonous ~ ., data = test_data)[, -1]
+test_y <- factor(test_data$poisonous, levels = c("poisonous", "edible"))
+
+# Grid of alpha values
+alpha_values <- seq(0, 1, by = 0.1)
+results <- list()
+
+# Cross-validation for each alpha
+for (alpha in alpha_values) {
+  set.seed(123)
+  cv_fit <- cv.glmnet(
+    x = train_x,
+    y = train_y,
+    alpha = alpha,
+    family = "binomial",
+    type.measure = "auc",
+    nfolds = 10,
+    parallel = TRUE
+  )
+  results[[as.character(alpha)]] <- cv_fit
+}
+
+# Select best alpha and lambda based on AUC
+best_auc <- -Inf
+for (alpha in alpha_values) {
+  cv_fit <- results[[as.character(alpha)]]
+  max_auc <- max(cv_fit$cvm)
+  if (max_auc > best_auc) {
+    best_auc <- max_auc
+    best_alpha <- alpha
+    best_lambda <- cv_fit$lambda[which.max(cv_fit$cvm)]
+  }
+}
+
+# Final model
+final_model <- glmnet(
+  x = train_x,
+  y = train_y,
+  alpha = best_alpha,
+  family = "binomial",
+  lambda = best_lambda
+)
+
+# Predictions
+train_pred <- predict(final_model, newx = train_x, type = "response")
+test_pred <- predict(final_model, newx = test_x, type = "response")
+
+train_class <- ifelse(train_pred > 0.5, "poisonous", "edible") |> factor(levels = c("poisonous", "edible"))
+test_class  <- ifelse(test_pred > 0.5, "poisonous", "edible") |> factor(levels = c("poisonous", "edible"))
+
+# Create tibbles for yardstick
+train_eval <- tibble(
+  truth = train_y,
+  .pred_class = train_class,
+  .pred = as.vector(train_pred)
+)
+
+test_eval <- tibble(
+  truth = test_y,
+  .pred_class = test_class,
+  .pred = as.vector(test_pred)
+)
+
+# Metrics function
+evaluate_metrics <- function(eval_tbl, label = "Set") {
+  metrics <- metric_set(accuracy, sens, spec, f_meas, roc_auc, brier_class)
+  result <- metrics(eval_tbl, truth = truth, estimate = .pred_class, .pred = .pred)
+  result$set <- label
+  return(result)
+}
+
+# Apply metrics
+train_metrics <- evaluate_metrics(train_eval, "Train")
+test_metrics <- evaluate_metrics(test_eval, "Test")
+all_metrics <- bind_rows(train_metrics, test_metrics)
+
+# Print evaluation results
+print(all_metrics)
+
+# Plot ROC curves
+roc_train <- roc(response = train_y, predictor = as.vector(train_pred), levels = c("edible", "poisonous"))
+roc_test  <- roc(response = test_y, predictor = as.vector(test_pred), levels = c("edible", "poisonous"))
+
+plot(roc_test, col = "blue", lwd = 2, main = "ROC Curves")
+lines(roc_train, col = "green", lwd = 2, lty = 2)
+legend("bottomright", legend = c("Test", "Train"), col = c("blue", "green"), lwd = 2, lty = c(1, 2))
+
+# Coefficients
+coefs <- coef(final_model, s = best_lambda)
+important_vars <- data.frame(
+  variable = rownames(coefs)[-1],
+  coefficient = as.numeric(coefs[-1])
+)
+important_vars <- important_vars %>%
+  arrange(desc(abs(coefficient))) %>%
+  slice_head(n = 20)
+
+# Variable importance plot
+ggplot(important_vars, aes(x = reorder(variable, coefficient), y = coefficient)) +
+  geom_bar(stat = "identity", fill = "steelblue") +
+  coord_flip() +
+  labs(title = paste("Top 20 Important Variables (Alpha =", best_alpha, ")"),
+       x = "Variable", y = "Coefficient") +
+  theme_minimal()
+
+
+```
+
+
 
 ```{r}
 # Load required packages
